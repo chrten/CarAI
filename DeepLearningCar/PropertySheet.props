@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_PropertySheetDisplayName>ExternalLibPaths</_PropertySheetDisplayName>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>..\ext\glfw-3.2.1\include;..\ext\glad\include;..\ext\glm-0.9.9-a1;..\ext\assimp-4.0.1\include;..\ext\AntTweakBar\include;..\ext\bullet3-2.87\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>..\ext\glfw-3.2.1\lib;..\ext\glad\lib;..\ext\assimp-4.0.1\lib;..\ext\AntTweakBar\lib;..\ext\bullet3-2.87\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glfw3.lib;glad64.lib;assimp-vc140-mt.lib;AntTweakBar64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup />
+</Project>
