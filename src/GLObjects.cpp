@@ -67,6 +67,22 @@ GLsizeiptr Buffer::getSize()
   return static_cast<GLsizeiptr>(size);
 }
 
+
+unsigned char* Buffer::mapBuffer(GLenum access)
+{
+  unsigned char* p = 0;
+  bind();
+  if (valid())
+    p = reinterpret_cast<unsigned char*>(glMapBuffer(m_target, access));
+  return p;
+}
+
+
+void Buffer::unmapBuffer()
+{
+  glUnmapBuffer(m_target);
+}
+
 Shader::Shader(GLenum type)
   : m_type(type), m_id(0)
 {
@@ -256,7 +272,7 @@ void Program::setUniformMatrix4f(const char* name, const glm::mat4& v, bool tran
 }
 
 Mesh::Mesh(const char* filename)
-  : m_vbo(0), m_ibo(0), m_numVerts(0), m_numTris(0)
+  : m_vbo(0), m_ibo(0), m_numVerts(0), m_numTris(0), m_vertexStride(0)
 {
   const aiScene* scene = aiImportFile(filename, aiProcessPreset_TargetRealtime_Quality);
 
@@ -297,8 +313,9 @@ Mesh::Mesh(const char* filename)
 
   if (m_numVerts)
   {
+    m_vertexStride = 12;
     m_vbo = new VertexBuffer();
-    m_vbo->setData(m_numVerts * 12, &verts[0]);
+    m_vbo->setData(m_numVerts * m_vertexStride, &verts[0]);
   }
 
   if (m_numTris)

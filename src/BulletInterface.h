@@ -34,6 +34,33 @@ struct BulletInterface
 
 
 
+class BulletMeshInterface : public btStridingMeshInterface
+{
+public:
+
+  BulletMeshInterface(GL::Mesh* mesh) : m_mesh(mesh) {}
+  virtual ~BulletMeshInterface() {}
+
+
+  void getLockedVertexIndexBase(unsigned char **vertexbase, int& numverts, PHY_ScalarType& type, int& vertexStride, unsigned char **indexbase, int & indexstride, int& numfaces, PHY_ScalarType& indicestype, int subpart);
+  void getLockedReadOnlyVertexIndexBase(const unsigned char **vertexbase, int& numverts, PHY_ScalarType& type, int& vertexStride, const unsigned char **indexbase, int & indexstride, int& numfaces, PHY_ScalarType& indicestype, int subpart) const;
+
+  virtual void	unLockVertexBase(int subpart);
+  virtual void	unLockReadOnlyVertexBase(int subpart) const;
+
+
+  virtual int		getNumSubParts() const { return 1; }
+
+  virtual void	preallocateVertices(int numverts) {}
+  virtual void	preallocateIndices(int numindices) {}
+
+
+  GL::Mesh* mesh() const { return m_mesh; }
+
+private:
+  GL::Mesh* m_mesh;
+};
+
 
 
 class GLDebugDrawer : public btIDebugDraw
@@ -59,6 +86,10 @@ public:
   void setViewProj(const glm::mat4& viewProj) { m_viewProj = viewProj; }
 
 
+  void beginDraw() { m_lineBuf.clear(); }
+  void endDraw();
+
+
 private:
 
   int m_debugMode;
@@ -66,6 +97,9 @@ private:
   glm::mat4 m_viewProj;
 
   GL::Program* m_program;
+
+
+  std::vector<float> m_lineBuf;
 };
 
 

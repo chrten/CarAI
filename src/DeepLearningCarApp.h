@@ -25,6 +25,8 @@ public:
 
   void initVehicle();
 
+  void initTrack();
+
   virtual void draw(double time);
   virtual void updatePhysics(double dt);
 
@@ -62,6 +64,9 @@ private:
   btRaycastVehicle* m_vehicle;
   VehicleControllerUser* m_vehicleController;
 
+  std::vector<unsigned char> m_trackHeights;
+  btRigidBody* m_trackBody;
+
 
   GL::Program* m_singleColorProg;
 
@@ -70,5 +75,6 @@ private:
 
   GL::Mesh* m_sphereMesh;
   GL::Mesh* m_boxMesh;
+  GL::Mesh* m_trackMesh;
 };
 

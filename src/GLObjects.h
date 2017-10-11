@@ -26,6 +26,9 @@ public:
   void setData(GLsizeiptr size, const void* data, GLenum usage = GL_STATIC_DRAW);
   void getData(GLintptr offset, GLsizeiptr size, void* dst);
   GLsizeiptr getSize();
+  unsigned char* mapBuffer(GLenum access = GL_READ_WRITE);
+  void unmapBuffer();
+
 
 
   GLuint id() const { return m_id; }
@@ -132,6 +135,14 @@ public:
 
   void draw();
 
+  int numVertices() const { return m_numVerts; }
+  int numTriangles() const { return m_numTris; }
+
+  int vertexStride() const { return m_vertexStride; }
+
+  VertexBuffer* vertexBuffer() const { return m_vbo; }
+  IndexBuffer* indexBuffer() const { return m_ibo; }
+
 private:
 
   VertexBuffer* m_vbo;
@@ -139,6 +150,8 @@ private:
 
   int m_numVerts;
   int m_numTris;
+
+  int m_vertexStride;
 };
 
 

@@ -106,14 +106,14 @@ btRaycastVehicle* BulletInterface::createUnmanagedVehicle(std::shared_ptr<btColl
   //The axis which the wheel rotates arround
   btVector3 wheelAxleCS(-1, 0, 0);
 
-  btScalar suspensionRestLength(0.7);
+  btScalar suspensionRestLength(0.7f);
 
-  btScalar wheelWidth(0.4);
+  btScalar wheelWidth(0.4f);
 
-  btScalar wheelRadius(0.5);
+  btScalar wheelRadius(0.5f);
 
   //The height where the wheels are connected to the chassis
-  btScalar connectionHeight(1.2);
+  btScalar connectionHeight(1.2f);
 
   //All the wheel configuration assumes the vehicle is centered at the origin and a right handed coordinate system is used
   btVector3 wheelConnectionPoint(halfExtents.x() - wheelRadius, connectionHeight, halfExtents.z() - wheelWidth);
@@ -169,8 +169,23 @@ GLDebugDrawer::~GLDebugDrawer()
 
 void    GLDebugDrawer::drawLine(const btVector3& from, const btVector3& to, const btVector3& color)
 {
-  //      if (m_debugMode > 0)
+  m_lineBuf.push_back(from.getX());
+  m_lineBuf.push_back(from.getY());
+  m_lineBuf.push_back(from.getZ());
 
+  m_lineBuf.push_back(to.getX());
+  m_lineBuf.push_back(to.getY());
+  m_lineBuf.push_back(to.getZ());
+}
+
+void    GLDebugDrawer::setDebugMode(int debugMode)
+{
+  m_debugMode = debugMode;
+}
+
+
+void GLDebugDrawer::endDraw()
+{
   if (!m_program)
   {
     m_program = new GL::Program();
@@ -179,28 +194,22 @@ void    GLDebugDrawer::drawLine(const btVector3& from, const btVector3& to, cons
 
   if (m_program && m_program->valid())
   {
-    float tmp[6] = { from.getX(), from.getY(), from.getZ(),
-      to.getX(), to.getY(), to.getZ() };
-
     m_program->use();
-    m_program->setUniform4f("color", glm::vec4(color[0], color[1], color[2], 1.0f));
+    m_program->setUniform4f("color", glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
     m_program->setUniformMatrix4f("WVP", m_viewProj);
 
     glEnableVertexAttribArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12, tmp);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12, &m_lineBuf[0]);
+
+    GLsizei n = static_cast<GLsizei>(m_lineBuf.size() / 3);
 
     glPointSize(5.0f);
-    glDrawArrays(GL_POINTS, 0, 2);
-    glDrawArrays(GL_LINES, 0, 2);
+    glDrawArrays(GL_POINTS, 0, n);
+    glDrawArrays(GL_LINES, 0, n);
 
     glDisableVertexAttribArray(0);
   }
-}
-
-void    GLDebugDrawer::setDebugMode(int debugMode)
-{
-  m_debugMode = debugMode;
 }
 
 void    GLDebugDrawer::draw3dText(const btVector3& location, const char* textString)
@@ -305,4 +314,46 @@ void VehicleControllerUser::keyEvent(GLFWwindow* wnd, int key, int scancode, int
       }
     }
   }
+}
+
+void BulletMeshInterface::getLockedVertexIndexBase(unsigned char **vertexbase, int& numverts, PHY_ScalarType& type, int& vertexStride, unsigned char **indexbase, int & indexstride, int& numfaces, PHY_ScalarType& indicestype, int subpart)
+{
+  numverts = m_mesh->numVertices();
+  numfaces = m_mesh->numTriangles();
+
+  vertexStride = m_mesh->vertexStride();
+  indexstride = 4;
+
+  type = PHY_FLOAT;
+  indicestype = PHY_INTEGER;
+
+  *vertexbase = m_mesh->vertexBuffer()->mapBuffer(GL_READ_WRITE);
+  *indexbase = m_mesh->indexBuffer()->mapBuffer(GL_READ_WRITE);
+}
+
+void BulletMeshInterface::getLockedReadOnlyVertexIndexBase(const unsigned char **vertexbase, int& numverts, PHY_ScalarType& type, int& vertexStride, const unsigned char **indexbase, int & indexstride, int& numfaces, PHY_ScalarType& indicestype, int subpart) const
+{
+  numverts = m_mesh->numVertices();
+  numfaces = m_mesh->numTriangles();
+
+  vertexStride = m_mesh->vertexStride();
+  indexstride = 4;
+
+  type = PHY_FLOAT;
+  indicestype = PHY_INTEGER;
+
+  *vertexbase = m_mesh->vertexBuffer()->mapBuffer(GL_READ_ONLY);
+  *indexbase = m_mesh->indexBuffer()->mapBuffer(GL_READ_ONLY);
+}
+
+void BulletMeshInterface::unLockVertexBase(int subpart)
+{
+  m_mesh->vertexBuffer()->unmapBuffer();
+  m_mesh->indexBuffer()->unmapBuffer();
+}
+
+void BulletMeshInterface::unLockReadOnlyVertexBase(int subpart) const
+{
+  m_mesh->vertexBuffer()->unmapBuffer();
+  m_mesh->indexBuffer()->unmapBuffer();
 }

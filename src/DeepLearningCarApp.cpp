@@ -4,6 +4,11 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <BulletCollision/CollisionShapes/btHeightfieldTerrainShape.h>
+
+
+#include <lodepng.h>
+
 #include <iostream>
 #include <vector>
 
@@ -15,8 +20,9 @@ DeepLearningCarApp::DeepLearningCarApp(int w, int h, int glMajor, int glMinor, d
   m_bar(0), 
   m_cam(0), m_camControl(0),
   m_bullet(0), m_groundBody(0), m_sphereBody(0), m_vehicle(0), m_vehicleController(0),
+  m_trackBody(0),
   m_singleColorProg(0), m_gridVBO(0), m_coordsysVBO(0),
-  m_sphereMesh(0), m_boxMesh(0)
+  m_sphereMesh(0), m_boxMesh(0), m_trackMesh(0)
 {
   m_cam = new Camera();
 
@@ -35,6 +41,7 @@ DeepLearningCarApp::~DeepLearningCarApp()
 {
   delete m_sphereMesh;
   delete m_boxMesh;
+  delete m_trackMesh;
 
   if (m_bullet)
   {
@@ -68,7 +75,7 @@ void DeepLearningCarApp::init()
   glfwGetWindowSize(window(), &w, &h);
   TwWindowSize(w, h);
 
-  m_bar = TwNewBar("TweakBar");
+  //m_bar = TwNewBar("TweakBar");
 
   // ----------------------------------------------------
 
@@ -80,12 +87,13 @@ void DeepLearningCarApp::init()
   m_bullet->world->setGravity(btVector3(0, -10, 0));
 
   //m_groundBody = m_bullet->createManagedRigidBody(std::make_shared<btStaticPlaneShape>(btVector3(0, 1, 0), 1), 0.0, btVector3(0, -1, 0), false);
-  m_groundBody = m_bullet->createManagedRigidBody(std::make_shared<btBoxShape>(btVector3(100, 1, 100)), 0.0, btVector3(0, -1, 0), false);
+  //m_groundBody = m_bullet->createManagedRigidBody(std::make_shared<btBoxShape>(btVector3(100, 1, 100)), 0.0, btVector3(0, -1, 0), false);
   m_sphereBody = m_bullet->createManagedRigidBody(std::make_shared<btSphereShape>(0.5f), 1.0, btVector3(-3, 2, -1), true);
   m_sphereBody = m_bullet->createManagedRigidBody(std::make_shared<btSphereShape>(0.5f), 1.0, btVector3(3, 2, 1), true);
   m_sphereBody = m_bullet->createManagedRigidBody(std::make_shared<btSphereShape>(0.5f), 1.0, btVector3(3, 2, -1), true);
 
   initVehicle();
+  initTrack();
 
   m_vehicleController = new VehicleControllerUser(m_vehicle);
   addUserInputController(m_vehicleController);
@@ -136,6 +144,20 @@ void DeepLearningCarApp::initVehicle()
 
 }
 
+
+void DeepLearningCarApp::initTrack()
+{
+  // load from heightfield
+  unsigned int w, h;
+  if (!lodepng::decode(m_trackHeights, w, h, "../data/tracks/track0.png", LCT_GREY, 8u))
+  {
+    std::shared_ptr<btHeightfieldTerrainShape> trackShape = std::make_shared<btHeightfieldTerrainShape>(w, h, &m_trackHeights[0], 10.0f / 256.0f, 0.0f, 10.0f, 1, PHY_UCHAR, false);
+    m_trackBody = m_bullet->createManagedRigidBody(trackShape, 0.0f, btVector3(0.0f, 0.0f, 0.0f), false);
+  }
+  else
+    std::cout << "failed to load track" << std::endl;
+}
+
 void DeepLearningCarApp::draw(double time)
 {
   int width, height;
@@ -143,6 +165,9 @@ void DeepLearningCarApp::draw(double time)
   glViewport(0, 0, width, height);
   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
+
+
+  m_cam->perspective(90.0f * 3.14159f / 180.0f, static_cast<float>(width) / height, 0.0001f, 100.0f);
 
 
   glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -178,6 +203,19 @@ void DeepLearningCarApp::draw(double time)
     m_boxMesh->draw();
   }
 
+  if (m_trackMesh)
+  {
+    m_singleColorProg->use();
+    m_singleColorProg->setUniform4f("color", glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
+    m_singleColorProg->setUniformMatrix4f("WVP", viewProj);
+
+    m_trackMesh->draw();
+
+    // disable visualization in debug drawer to prevent crash
+    int f = m_trackBody->getCollisionFlags();
+    m_trackBody->setCollisionFlags(f | btCollisionObject::CF_DISABLE_VISUALIZE_OBJECT);
+  }
+
   m_singleColorProg->disable();
   
   glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -190,7 +228,10 @@ void DeepLearningCarApp::draw(double time)
     bulletDebugDrawer.setViewProj(viewProj);
 
     m_bullet->world->setDebugDrawer(&bulletDebugDrawer);
+
+    bulletDebugDrawer.beginDraw();
     m_bullet->world->debugDrawWorld();
+    bulletDebugDrawer.endDraw();
   }
   
 
