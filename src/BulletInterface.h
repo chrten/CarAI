@@ -16,8 +16,9 @@ struct BulletInterface
   // managed rigid bodies are immediately added to the world and freed on destructor of BulletInterface
   btRigidBody* createManagedRigidBody(std::shared_ptr<btCollisionShape> shape, btScalar mass, const btVector3& pos, bool computeInertia = true);
   btRigidBody* createUnmanagedRigidBody(std::shared_ptr<btCollisionShape> shape, btScalar mass, const btVector3& pos, bool computeInertia = true);
+  btRigidBody* createUnmanagedRigidBody(std::shared_ptr<btCollisionShape> shape, btScalar mass, const btVector3& pos, int group, int mask, bool computeInertia = true);
 
-  btRaycastVehicle* createUnmanagedVehicle(std::shared_ptr<btCollisionShape> chassisShape, btScalar mass, const btVector3& pos);
+  btRaycastVehicle* createUnmanagedVehicle(std::shared_ptr<btCollisionShape> chassisShape, btScalar mass, const btVector3& pos, int group, int mask);
 
 
   btBroadphaseInterface* broadphase;
@@ -100,23 +101,4 @@ private:
 
 
   std::vector<float> m_lineBuf;
-};
-
-
-
-
-// ARROWS: accelerate, steer and reverse,  SPACE: handbrake
-class VehicleControllerUser : public UserInputController
-{
-public:
-  VehicleControllerUser(btRaycastVehicle* vehicle);
-
-  void keyEvent(GLFWwindow* wnd, int key, int scancode, int action, int mods);
-
-  btRaycastVehicle* m_vehicle;
-
-  btScalar m_steer;
-  btScalar m_engineForceFwd;
-  btScalar m_engineForceRev;
-  btScalar m_brake;
 };

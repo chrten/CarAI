@@ -28,6 +28,10 @@
     <ClCompile Include="..\src\DeepLearningCarApp.cpp" />
     <ClCompile Include="..\src\GLObjects.cpp" />
     <ClCompile Include="..\src\main.cpp" />
+    <ClCompile Include="..\src\Renderer.cpp" />
+    <ClCompile Include="..\src\Simulation\NeuralNetwork.cpp" />
+    <ClCompile Include="..\src\Simulation\Simulation.cpp" />
+    <ClCompile Include="..\src\Simulation\Vehicle.cpp" />
     <ClCompile Include="..\src\UserInputController.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -38,6 +42,10 @@
     <ClInclude Include="..\src\CameraController.h" />
     <ClInclude Include="..\src\DeepLearningCarApp.h" />
     <ClInclude Include="..\src\GLObjects.h" />
+    <ClInclude Include="..\src\Renderer.h" />
+    <ClInclude Include="..\src\Simulation\NeuralNetwork.h" />
+    <ClInclude Include="..\src\Simulation\Simulation.h" />
+    <ClInclude Include="..\src\Simulation\Vehicle.h" />
     <ClInclude Include="..\src\UserInputController.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

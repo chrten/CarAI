@@ -71,13 +71,36 @@ btRigidBody* BulletInterface::createUnmanagedRigidBody(std::shared_ptr<btCollisi
 
   world->addRigidBody(body);
 
+
   return body;
 }
 
-btRaycastVehicle* BulletInterface::createUnmanagedVehicle(std::shared_ptr<btCollisionShape> chassisShape, btScalar mass, const btVector3& pos)
+btRigidBody* BulletInterface::createUnmanagedRigidBody(std::shared_ptr<btCollisionShape> shape, btScalar mass, const btVector3& pos, int group, int mask, bool computeInertia /*= true*/)
+{
+  btVector3 inertia(0.0, 0.0, 0.0);
+
+  if (computeInertia)
+    shape->calculateLocalInertia(mass, inertia);
+
+  btTransform transform;
+  transform.setIdentity();
+  transform.setOrigin(pos);
+
+  btRigidBody::btRigidBodyConstructionInfo ci(mass,
+    new btDefaultMotionState(transform),
+    shape.get(), inertia);
+
+  btRigidBody* body = new btRigidBody(ci);
+
+  world->addRigidBody(body, group, mask);
+
+  return body;
+}
+
+btRaycastVehicle* BulletInterface::createUnmanagedVehicle(std::shared_ptr<btCollisionShape> chassisShape, btScalar mass, const btVector3& pos, int group, int mask)
 {
   // create rigid body for chassis
-  btRigidBody* chassisBody = createUnmanagedRigidBody(chassisShape, mass, pos, true);
+  btRigidBody* chassisBody = createUnmanagedRigidBody(chassisShape, mass, pos, group, mask, true);
 
   // create vehicle
   btVehicleRaycaster* vehicleRayCaster = new btDefaultVehicleRaycaster(world);
@@ -241,80 +264,6 @@ void    GLDebugDrawer::drawContactPoint(const btVector3& pointOnB, const btVecto
 
 
 
-
-VehicleControllerUser::VehicleControllerUser(btRaycastVehicle* vehicle) 
-  : m_vehicle(vehicle),
-  m_steer(0.3f),
-  m_engineForceFwd(5000.0f), m_engineForceRev(-3000.0f),
-  m_brake(500.0f)
-{
-
-}
-
-void VehicleControllerUser::keyEvent(GLFWwindow* wnd, int key, int scancode, int action, int mods)
-{
-  if (m_vehicle)
-  {
-    if (action != GLFW_RELEASE)
-    {
-      if (key == GLFW_KEY_LEFT)
-      {
-        m_vehicle->setSteeringValue(m_steer, 0);
-        m_vehicle->setSteeringValue(m_steer, 1);
-      }
-
-      if (key == GLFW_KEY_RIGHT)
-      {
-        m_vehicle->setSteeringValue(-m_steer, 0);
-        m_vehicle->setSteeringValue(-m_steer, 1);
-      }
-
-      if (key == GLFW_KEY_UP)
-      {
-        m_vehicle->applyEngineForce(m_engineForceFwd, 2);
-        m_vehicle->applyEngineForce(m_engineForceFwd, 3);
-      }
-
-      if (key == GLFW_KEY_DOWN)
-      {
-        m_vehicle->applyEngineForce(m_engineForceRev, 2);
-        m_vehicle->applyEngineForce(m_engineForceRev, 3);
-      }
-
-      //Handbrake
-      if (key == GLFW_KEY_SPACE)
-      {
-        m_vehicle->setBrake(m_brake, 2);
-        m_vehicle->setBrake(m_brake, 3);
-      }
-    }
-    else
-    {
-      if (key == GLFW_KEY_LEFT || key == GLFW_KEY_RIGHT)
-      {
-        m_vehicle->setSteeringValue(0, 0);
-        m_vehicle->setSteeringValue(0, 1);
-      }
-
-      if (key == GLFW_KEY_UP || key == GLFW_KEY_DOWN)
-      {
-        m_vehicle->applyEngineForce(0, 2);
-        m_vehicle->applyEngineForce(0, 3);
-
-        //Default braking force, always added otherwise there is no friction on the wheels
-        m_vehicle->setBrake(10, 2);
-        m_vehicle->setBrake(10, 3);
-      }
-
-      //Handbrake
-      if (key == GLFW_KEY_SPACE)
-      {
-        m_vehicle->setBrake(0, 2);
-        m_vehicle->setBrake(0, 3);
-      }
-    }
-  }
-}
 
 void BulletMeshInterface::getLockedVertexIndexBase(unsigned char **vertexbase, int& numverts, PHY_ScalarType& type, int& vertexStride, unsigned char **indexbase, int & indexstride, int& numfaces, PHY_ScalarType& indicestype, int subpart)
 {
