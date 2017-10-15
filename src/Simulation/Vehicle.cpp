@@ -5,10 +5,12 @@
 
 #include "../Application.h"
 
+#include <iostream>
+#include <algorithm>
 #include <cstdio>
 
 Vehicle::Vehicle(btRaycastVehicle* bvehicle)
-  : m_vehicle(bvehicle), m_controller(0)
+  : m_vehicle(bvehicle), m_controller(0), m_neuralNetwork(0)
 {
 
 }
@@ -17,6 +19,7 @@ Vehicle::~Vehicle()
 {
   delete m_vehicle;
   delete m_controller;
+  delete m_neuralNetwork;
 }
 
 
@@ -33,6 +36,78 @@ void Vehicle::setControllerUser(Application* app)
 {
   delete m_controller;
   m_controller = new VehicleControllerUser(this, app);
+}
+
+
+void Vehicle::setControllerNeuralNet()
+{
+  delete m_controller;
+  m_controller = new VehicleControllerNeuralNet(this);
+}
+
+void Vehicle::update(double dt, btDynamicsWorld* world)
+{
+  for (int i = 0; i < numSensors(); ++i)
+  {
+    Sensor* s = sensor(i);
+
+    s->startWS = m_vehicle->getChassisWorldTransform() * s->startOS;
+    s->endWS = m_vehicle->getChassisWorldTransform() * s->endOS;
+
+    btCollisionWorld::ClosestRayResultCallback hit(s->startWS, s->endWS);
+
+    // ignore other vehicles in the simulation
+    hit.m_collisionFilterGroup = collisionGroup();
+    hit.m_collisionFilterMask = ~collisionGroup();
+
+    world->rayTest(hit.m_rayFromWorld, hit.m_rayToWorld, hit);
+    
+    s->dist = s->maxDist;
+    if (hit.hasHit())
+      s->dist *= hit.m_closestHitFraction;
+  }
+
+
+  if (m_controller)
+    m_controller->update(dt);
+}
+
+void Vehicle::addSensor(const btVector3& start, const btVector3& end)
+{
+  Sensor s;
+  s.startOS = start;
+  s.endOS = end;
+
+  s.maxDist = (start - end).norm();
+  s.dist = s.maxDist;
+
+  s.startWS = m_vehicle->getChassisWorldTransform() * s.startOS;
+  s.endWS = m_vehicle->getChassisWorldTransform() * s.endOS;
+
+  m_sensors.push_back(s);
+}
+
+
+void Vehicle::initNeuralNetwork(const std::vector<int>& internalLayerSize)
+{
+  delete m_neuralNetwork;
+  m_neuralNetwork = new NeuralNetwork();
+
+
+  // sensor layer
+  m_neuralNetwork->addLayer(numSensors());
+
+  // internal layers
+  for (size_t i = 0; i < internalLayerSize.size(); ++i)
+    m_neuralNetwork->addLayer(internalLayerSize[i]);
+
+  // output layer
+  m_neuralNetwork->addLayer(VehicleControllerNeuralNet::dof());
+
+
+  // init with random weights
+  for (int i = 0; i < m_neuralNetwork->numLinks(); ++i)
+    m_neuralNetwork->links(i)->randomize(-1.0f, 1.0f);
 }
 
 VehicleController::VehicleController(Vehicle* vehicle)
@@ -132,3 +207,48 @@ void VehicleControllerRand::update(double dt)
   m_vehicle->physics()->applyEngineForce(u * m_engineForceFwdMax, 3);
 }
 
+
+VehicleControllerNeuralNet::VehicleControllerNeuralNet(Vehicle* vehicle)
+  : VehicleController(vehicle)
+{
+
+}
+
+void VehicleControllerNeuralNet::update(double dt)
+{
+  // get sensor data
+  int ns = m_vehicle->numSensors();
+  std::vector<float> input(ns);
+
+  for (int i = 0; i < ns; ++i)
+    input[i] = m_vehicle->sensor(i)->dist;
+
+  // get output from neural network
+  std::vector<float> output;
+  if (m_vehicle->neuralNetwork()->compute(input, output))
+  {
+    // apply to vehicle
+    btRaycastVehicle* v = m_vehicle->physics();
+
+
+    // clamp to allowed values
+    float steer = output[0] * m_steerMax;
+    
+    float force = output[1] * 0.5f + 0.5f; // map [-1,1] to [0,1]
+    force = m_engineForceRevMax + (m_engineForceFwdMax - m_engineForceRevMax) * force; // lerp
+
+    v->setSteeringValue(steer, 0);
+    v->setSteeringValue(steer, 1);
+
+    v->applyEngineForce(force, 2);
+    v->applyEngineForce(force, 3);
+  }
+  else
+    std::cerr << "error: could not execute neural network" << std::endl;
+}
+
+int VehicleControllerNeuralNet::dof()
+{
+  // dofs: steer, engine force
+  return 2;
+}

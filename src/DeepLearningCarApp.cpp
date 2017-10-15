@@ -48,6 +48,7 @@ void DeepLearningCarApp::init()
   Simulation::Desc desc;
   desc.numCars = 20;
   desc.trackFilename = "../data/tracks/track0.png";
+  desc.trackScale = 2.0f;
 
   m_simulation = new Simulation(desc, this);
   
@@ -64,7 +65,7 @@ void DeepLearningCarApp::init()
   if (dynamic_cast<UserInputController*>(m_camControl))
     removeUserInputController(dynamic_cast<UserInputController*>(m_camControl));
   delete m_camControl;
-  m_camControl = new CameraControllerFollow(m_cam, m_simulation->m_vehicle->physics()->getRigidBody());
+  m_camControl = new CameraControllerFollow(m_cam, m_simulation->m_vehicleUser->physics()->getRigidBody());
 
   // -----------------------------------------------------
 

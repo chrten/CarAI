@@ -30,6 +30,7 @@ public:
 
   bool compute(const std::vector<float>& input, std::vector<float>& output) const;
 
+  int numLinks() const { return static_cast<int>(m_links.size()); }
   LayerLinks* links(int i) { return m_links[i]; }
   const LayerLinks* links(int i) const { return m_links[i]; }
 

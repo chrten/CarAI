@@ -47,12 +47,12 @@ bool NeuralNetwork::LayerLinks::compute(const std::vector<float>& input, std::ve
 
   for (int k = 0; k < numOutputs; ++k)
   {
-    output[k] = 0.0f;
+    float p = 0.0f;
 
     for (int i = 0; i < numInputs; ++i)
-      output[k] += weight(i, k) * input[i];
+      p += weight(i, k) * input[i];
 
-    output[k] = activate(output[k]);
+    output[k] = activate(p);
   }
 
   return true;

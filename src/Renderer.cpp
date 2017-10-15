@@ -83,9 +83,66 @@ void Renderer::draw(double time, Simulation* sim, Camera* cam)
     sim->m_trackBody->setCollisionFlags(f | btCollisionObject::CF_DISABLE_VISUALIZE_OBJECT);
   }
 
+  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+
+
+
+  // draw sensor info
+  {
+    static std::vector<float> sensorLines;
+    
+    sensorLines.clear();
+    for (int i = 0; i < sim->numVehicles(); ++i)
+    {
+      Vehicle* v = sim->vehicle(i);
+
+      if (v)
+      {
+        int ns = v->numSensors();
+        for (int i = 0; i < ns; ++i)
+        {
+          Vehicle::Sensor* s = v->sensor(i);
+
+          for (int k = 0; k < 3; ++k)
+            sensorLines.push_back(s->startWS[k]);
+
+          btVector3 endWS = s->startWS + (s->endWS - s->startWS).normalized() * s->dist;
+          for (int k = 0; k < 3; ++k)
+            sensorLines.push_back(endWS[k]);
+        }
+      }
+    }
+
+
+    int numLineVerts = static_cast<int>(sensorLines.size() / 3);
+
+    if (numLineVerts)
+    {
+      m_singleColorProg->use();
+      m_singleColorProg->setUniform4f("color", glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+      m_singleColorProg->setUniformMatrix4f("WVP", viewProj);
+
+      glEnableVertexAttribArray(0);
+      glBindBuffer(GL_ARRAY_BUFFER, 0);
+      glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12, &sensorLines[0]);
+
+      glDrawArrays(GL_LINES, 0, numLineVerts);
+      glDrawArrays(GL_POINTS, 0, numLineVerts);
+
+      glDisableVertexAttribArray(0);
+    }
+  }
+  
+
+
+
+
   m_singleColorProg->disable();
 
-  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+
+
 
 
   {
