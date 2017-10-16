@@ -5,7 +5,8 @@
 
 
 Renderer::Renderer()
-  : m_singleColorProg(0), m_gridVBO(0), m_coordsysVBO(0),
+  : m_width(0), m_height(0), m_bar(0),
+  m_singleColorProg(0), m_gridVBO(0), m_coordsysVBO(0),
   m_sphereMesh(0), m_boxMesh(0), m_trackMesh(0)
 {
   // basic shader 
@@ -117,23 +118,14 @@ void Renderer::draw(double time, Simulation* sim, Camera* cam)
 
     int numLineVerts = static_cast<int>(sensorLines.size() / 3);
 
-    if (numLineVerts)
-    {
-      m_singleColorProg->use();
-      m_singleColorProg->setUniform4f("color", glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-      m_singleColorProg->setUniformMatrix4f("WVP", viewProj);
-
-      glEnableVertexAttribArray(0);
-      glBindBuffer(GL_ARRAY_BUFFER, 0);
-      glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12, &sensorLines[0]);
-
-      glDrawArrays(GL_LINES, 0, numLineVerts);
-      glDrawArrays(GL_POINTS, 0, numLineVerts);
-
-      glDisableVertexAttribArray(0);
-    }
+    drawLines(numLineVerts, sensorLines.data(), 12, viewProj, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
   }
   
+  if (!sim->trackSegments().empty())
+  {
+    int numLineVerts = static_cast<int>(sim->trackSegments().size());
+    drawLines(numLineVerts, sim->trackSegments().data(), sizeof(btVector3), viewProj, glm::vec4(0.0f, 1.0f, 0.0f, 1.0f), true);
+  }
 
 
 
@@ -163,7 +155,25 @@ void Renderer::draw(double time, Simulation* sim, Camera* cam)
 
   //drawGrid();
 
+
+
   // draw tweakbars
+
+  if (!m_bar)
+  {
+    m_bar = TwNewBar("TweakBar");
+
+    TwAddVarRO(m_bar, "seg", TW_TYPE_INT32, &sim->vehicle(sim->numVehicles() - 1)->curTrackSegment(), "");
+    TwAddVarRO(m_bar, "dist", TW_TYPE_FLOAT, &sim->vehicle(sim->numVehicles() - 1)->curTrackDistance(), "");
+
+    TwAddVarRO(m_bar, "bestSeg", TW_TYPE_INT32, &sim->vehicle(sim->numVehicles() - 1)->bestTrackSegment(), "");
+    TwAddVarRO(m_bar, "bestDist", TW_TYPE_FLOAT, &sim->vehicle(sim->numVehicles() - 1)->bestTrackDistance(), "");
+
+    TwAddVarRO(m_bar, "traveldir", TW_TYPE_INT32, &sim->vehicle(sim->numVehicles() - 1)->travelDir(), "");
+    TwAddVarRO(m_bar, "alive", TW_TYPE_BOOLCPP, &sim->vehicle(sim->numVehicles() - 1)->alive(), "");
+
+  }
+
   TwDraw();
 }
 
@@ -215,4 +225,23 @@ void Renderer::drawGrid(const glm::mat4& wvp)
   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12, 0);
 
   glDrawArrays(GL_LINES, 0, n * 2 * 2);
+}
+
+void Renderer::drawLines(int numVertices, const void* vertices, int stride, const glm::mat4& wvp, const glm::vec4& color, bool strip)
+{
+  if (numVertices)
+  {
+    m_singleColorProg->use();
+    m_singleColorProg->setUniform4f("color", color);
+    m_singleColorProg->setUniformMatrix4f("WVP", wvp);
+
+    glEnableVertexAttribArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, vertices);
+
+    glDrawArrays(strip ? GL_LINE_STRIP : GL_LINES, 0, numVertices);
+    glDrawArrays(GL_POINTS, 0, numVertices);
+
+    glDisableVertexAttribArray(0);
+  }
 }

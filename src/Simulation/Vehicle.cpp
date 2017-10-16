@@ -2,6 +2,7 @@
 #include <glad/glad.h>
 
 #include "Vehicle.h"
+#include "Simulation.h"
 
 #include "../Application.h"
 
@@ -10,7 +11,9 @@
 #include <cstdio>
 
 Vehicle::Vehicle(btRaycastVehicle* bvehicle)
-  : m_vehicle(bvehicle), m_controller(0), m_neuralNetwork(0)
+  : m_vehicle(bvehicle), m_controller(0), m_neuralNetwork(0),
+  m_bestSegment(0), m_curSegment(0), m_travelDir(0), m_bestDistance(0.0f), m_curDistance(0.0f),
+  m_alive(true)
 {
 
 }
@@ -45,8 +48,9 @@ void Vehicle::setControllerNeuralNet()
   m_controller = new VehicleControllerNeuralNet(this);
 }
 
-void Vehicle::update(double dt, btDynamicsWorld* world)
+void Vehicle::update(double dt, Simulation* sim)
 {
+  // update sensors
   for (int i = 0; i < numSensors(); ++i)
   {
     Sensor* s = sensor(i);
@@ -60,12 +64,15 @@ void Vehicle::update(double dt, btDynamicsWorld* world)
     hit.m_collisionFilterGroup = collisionGroup();
     hit.m_collisionFilterMask = ~collisionGroup();
 
-    world->rayTest(hit.m_rayFromWorld, hit.m_rayToWorld, hit);
+    sim->world()->rayTest(hit.m_rayFromWorld, hit.m_rayToWorld, hit);
     
     s->dist = s->maxDist;
     if (hit.hasHit())
       s->dist *= hit.m_closestHitFraction;
   }
+
+  // update performance
+  updateTrackPerformance(sim);
 
 
   if (m_controller)
@@ -109,6 +116,75 @@ void Vehicle::initNeuralNetwork(const std::vector<int>& internalLayerSize)
   for (int i = 0; i < m_neuralNetwork->numLinks(); ++i)
     m_neuralNetwork->links(i)->randomize(-1.0f, 1.0f);
 }
+
+
+void Vehicle::updateTrackPerformance(Simulation* sim)
+{
+  const std::vector<btVector3>& segments = sim->trackSegments();
+  const std::vector<float>& distances = sim->trackSegmentDist();
+
+
+  // brute force: find nearest segment
+  int nearestSeg = -1;
+  float nearestSegDist = -1.0f;
+  btVector3 nearestSegProj;
+  float trackDist = -1.0f;
+
+  btVector3 vpos = m_vehicle->getChassisWorldTransform().getOrigin();
+
+  int nsegs = static_cast<int>(sim->trackSegments().size());
+  for (int i = 0; i < nsegs; ++i)
+  {
+    // project vehicle pos onto segment
+    btVector3 a = segments[i];
+    btVector3 n = segments[(i + 1) % nsegs] - a;
+    btScalar len = n.norm();
+    n /= len;
+
+    btScalar p = (vpos - a).dot(n);
+
+    if (0.0f <= p && p <= len)
+    {
+      btVector3 segProj = a + n * p;
+      float segDist = (segProj - vpos).norm();
+
+      // segment found
+      if (nearestSeg < 0 || segDist < nearestSegDist)
+      {
+        nearestSeg = i;
+        nearestSegProj = segProj;
+        nearestSegDist = segDist;
+
+        trackDist = distances[i] + p;
+      }
+    }
+  }
+
+  if (nearestSeg >= 0)
+  {
+    // update travel direction
+    const btVector3& vel = m_vehicle->getRigidBody()->getLinearVelocity();
+    btVector3 n = segments[(nearestSeg + 1) % nsegs] - segments[nearestSeg];
+
+    btScalar vdotn = vel.dot(n);
+
+    if (vel.dot(vel) < 1e-6f)
+      m_travelDir = 0;
+    else if (vdotn > 0)
+      m_travelDir = 1;
+    else if (vdotn < 0)
+      m_travelDir = -1;
+
+    // update segment info
+    m_bestSegment = std::max(m_bestSegment, nearestSeg);
+    m_bestDistance = std::max(m_bestDistance, trackDist);
+
+    m_curSegment = nearestSeg;
+    m_curDistance = trackDist;
+  }
+}
+
+
 
 VehicleController::VehicleController(Vehicle* vehicle)
   : m_vehicle(vehicle),

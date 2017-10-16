@@ -9,7 +9,8 @@
 
 #include <lodepng.h>
 #include <iostream>
-
+#include <fstream>
+#include <algorithm>
 
 Simulation::Simulation(const Simulation::Desc& desc, Application* app)
   : m_desc(desc), m_app(app), m_bullet(0), m_groundBody(0), m_sphereBody(0), m_vehicleUser(0),
@@ -41,6 +42,9 @@ Simulation::Simulation(const Simulation::Desc& desc, Application* app)
   }
 
   initTrack();
+
+
+  m_bullet->world->setInternalTickCallback(subtickCallback, this);
 }
 
 Simulation::~Simulation()
@@ -62,6 +66,46 @@ Simulation::~Simulation()
     delete m_vehicles[i];
 }
 
+void Simulation::subtickCallback(btDynamicsWorld* world, btScalar timeStep)
+{
+  Simulation* sim = static_cast<Simulation*>(world->getWorldUserInfo());
+
+  int numManifolds = world->getDispatcher()->getNumManifolds();
+  for (int i = 0; i < numManifolds; i++)
+  {
+    btPersistentManifold* contactManifold = world->getDispatcher()->getManifoldByIndexInternal(i);
+    const btCollisionObject* obA = contactManifold->getBody0();
+    const btCollisionObject* obB = contactManifold->getBody1();
+
+    int numContacts = contactManifold->getNumContacts();
+    for (int j = 0; j < numContacts; j++)
+    {
+      btManifoldPoint& pt = contactManifold->getContactPoint(j);
+      if (pt.getDistance() < 0.f)
+      {
+        // check if track is colliding
+        if (obB == sim->m_trackBody)
+          std::swap(obB, obA);
+
+        if (obA == sim->m_trackBody)
+        {
+          // check if other colliding body is a vehicle
+
+          for (int i = 0; i < sim->numVehicles(); ++i)
+          {
+            Vehicle* v = sim->vehicle(i);
+
+            if (obB == v->physics()->getRigidBody())
+            {
+              v->kill();
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 void Simulation::update(double dt)
 {
   // update bullet world
@@ -70,14 +114,14 @@ void Simulation::update(double dt)
 
   int n = numVehicles();
   for (int i = 0; i < n; ++i)
-    vehicle(i)->update(dt, m_bullet->world);
+    vehicle(i)->update(dt, this);
 }
 
 void Simulation::initTrack()
 {
   // load from heightfield
   unsigned int w, h;
-  if (!lodepng::decode(m_trackHeights, w, h, m_desc.trackFilename, LCT_GREY, 8u))
+  if (!lodepng::decode(m_trackHeights, w, h, m_desc.trackHeightsFilename, LCT_GREY, 8u))
   {
     std::shared_ptr<btHeightfieldTerrainShape> trackShape = std::make_shared<btHeightfieldTerrainShape>(w, h, &m_trackHeights[0], 10.0f / 256.0f, 0.0f, 10.0f, 1, PHY_UCHAR, false);
 
@@ -90,13 +134,50 @@ void Simulation::initTrack()
     trackShape->getAabb(idt, aabbMin, aabbMax);
     btVector3 diag = (aabbMax - aabbMin);
 
-    // shift ground level to 1
-    btVector3 shift(0.0f, diag[1] * 0.5f + 1.0f, 0.0f);
+    // shift to ground level
+    btVector3 shift(0.0f, diag[1] * 0.5f + m_desc.trackGroundLevel, 0.0f);
 
     m_trackBody = m_bullet->createManagedRigidBody(trackShape, 0.0f, shift, false);
   }
   else
-    std::cout << "failed to load track" << std::endl;
+    std::cout << "failed to load track heightmap" << std::endl;
+
+
+  // load segments
+  m_trackSegments.clear();
+  std::ifstream file(m_desc.trackSegmentsFilename);
+  if (file.is_open())
+  {
+    for (std::string line; std::getline(file, line);)
+    {
+      float v[3];
+      if (sscanf(line.c_str(), "v %f %f %f", v, v+1, v+2) == 3)
+      {
+        m_trackSegments.push_back(btVector3(v[0], v[1], v[2]) * m_desc.trackScale);
+        m_trackSegments.back()[0] *= static_cast<float>(w);
+        m_trackSegments.back()[2] *= static_cast<float>(h);
+        m_trackSegments.back()[1] += m_desc.trackGroundLevel;
+      }
+    }
+
+    file.close();
+
+
+    std::reverse(m_trackSegments.begin(), m_trackSegments.end());
+
+
+    // compute accumulated segment distance
+    m_trackSegmentDist.resize(m_trackSegments.size(), 0.0f);
+    float accum = 0.0f;
+    for (size_t i = 1; i < m_trackSegments.size(); ++i)
+    {
+      accum += (m_trackSegments[i] - m_trackSegments[i - 1]).norm();
+      m_trackSegmentDist[i] = accum;
+    }
+
+  }
+  else
+    std::cout << "failed to load track heightmap" << std::endl;
 }
 
 void Simulation::initSensors()

@@ -47,7 +47,8 @@ void DeepLearningCarApp::init()
 
   Simulation::Desc desc;
   desc.numCars = 20;
-  desc.trackFilename = "../data/tracks/track0.png";
+  desc.trackHeightsFilename = "../data/tracks/track0.png";
+  desc.trackSegmentsFilename = "../data/tracks/track0_segments.obj";
   desc.trackScale = 2.0f;
 
   m_simulation = new Simulation(desc, this);
