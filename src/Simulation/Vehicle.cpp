@@ -123,8 +123,8 @@ void Vehicle::initNeuralNetwork(const std::vector<int>& internalLayerSize)
   m_neuralNetwork = new NeuralNetwork();
 
 
-  // sensor layer
-  m_neuralNetwork->addLayer(numSensors());
+  // input layer:  distance sensors + speed
+  m_neuralNetwork->addLayer(numSensors() + 1);
 
   // internal layers
   for (size_t i = 0; i < internalLayerSize.size(); ++i)
@@ -358,10 +358,14 @@ void VehicleControllerNeuralNet::update(double dt)
 {
   // get sensor data
   int ns = m_vehicle->numSensors();
-  std::vector<float> input(ns);
+  std::vector<float> input(ns + 1);
 
   for (int i = 0; i < ns; ++i)
     input[i] = m_vehicle->sensor(i)->dist;
+
+  // get speed
+  input[ns] = m_vehicle->physics()->getRigidBody()->getLinearVelocity().norm();
+
 
   // get output from neural network
   std::vector<float> output;
