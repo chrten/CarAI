@@ -42,11 +42,9 @@ void DeepLearningCarApp::init()
   glfwGetWindowSize(window(), &w, &h);
   TwWindowSize(w, h);
 
-  //m_bar = TwNewBar("TweakBar");
-
 
   Simulation::Desc desc;
-  desc.numCars = 20;
+  desc.numCars = 40;
   desc.trackHeightsFilename = "../data/tracks/track0.png";
   desc.trackSegmentsFilename = "../data/tracks/track0_segments.obj";
   desc.trackScale = 2.0f;
@@ -66,11 +64,14 @@ void DeepLearningCarApp::init()
   if (dynamic_cast<UserInputController*>(m_camControl))
     removeUserInputController(dynamic_cast<UserInputController*>(m_camControl));
   delete m_camControl;
-  m_camControl = new CameraControllerFollow(m_cam, m_simulation->m_vehicleUser->physics()->getRigidBody());
+  m_camControl = new CameraControllerFollow(m_cam, m_simulation->vehicle(0)->physics()->getRigidBody());
 
   // -----------------------------------------------------
 
   m_renderer = new Renderer();
+
+
+  m_simulation->initTweakVars(m_renderer->tweakbar());
 }
 
 void DeepLearningCarApp::draw(double time)
@@ -87,6 +88,16 @@ void DeepLearningCarApp::updatePhysics(double dt)
 {
   if (m_simulation)
     m_simulation->update(dt);
+
+  // follow best vehicle
+  CameraControllerFollow* followCam = dynamic_cast<CameraControllerFollow*>(m_camControl);
+  if (followCam)
+  {
+    Vehicle* best = m_simulation->bestVehicle();
+
+    if (best)
+      followCam->body(best->physics()->getRigidBody());
+  }
 
   // animate camera
   if (m_camControl)

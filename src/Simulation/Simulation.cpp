@@ -14,7 +14,7 @@
 
 Simulation::Simulation(const Simulation::Desc& desc, Application* app)
   : m_desc(desc), m_app(app), m_bullet(0), m_groundBody(0), m_sphereBody(0), m_vehicleUser(0),
-  m_trackBody(0)
+  m_evolution(0), m_trackBody(0)
 {
   m_bullet = new BulletInterface();
   m_bullet->world->setGravity(btVector3(0, -10, 0));
@@ -25,11 +25,7 @@ Simulation::Simulation(const Simulation::Desc& desc, Application* app)
 //   m_sphereBody = m_bullet->createManagedRigidBody(std::make_shared<btSphereShape>(0.5f), 1.0, btVector3(3, 2, 1), true);
 //   m_sphereBody = m_bullet->createManagedRigidBody(std::make_shared<btSphereShape>(0.5f), 1.0, btVector3(3, 2, -1), true);
 
-
-  m_vehicleUser = createVehicle();
-  m_vehicleUser->setControllerUser(m_app);
-
-
+  // AI controlled vehicles
   m_vehicles.resize(desc.numCars, 0);
   std::vector<int> internalNetworkLayers(2);
   internalNetworkLayers[0] = 4;
@@ -41,9 +37,18 @@ Simulation::Simulation(const Simulation::Desc& desc, Application* app)
     m_vehicles[i]->setControllerNeuralNet();
   }
 
+  
+  // user controller vehicle
+//   m_vehicleUser = createVehicle();
+//   m_vehicleUser->setControllerUser(m_app);
+
+
+  m_evolution = new EvolutionProcess(0.25f, 1.0f, 0.05f);
+
+
   initTrack();
 
-
+  // set callback for collision between vehicle chassis and terrain
   m_bullet->world->setInternalTickCallback(subtickCallback, this);
 }
 
@@ -54,7 +59,6 @@ Simulation::~Simulation()
     if (m_vehicleUser)
     {
       m_bullet->world->removeRigidBody(m_vehicleUser->physics()->getRigidBody());
-      delete m_vehicleUser->physics()->getRigidBody();
       m_bullet->world->removeVehicle(m_vehicleUser->physics());
       delete m_vehicleUser;
     }
@@ -64,6 +68,23 @@ Simulation::~Simulation()
 
   for (size_t i = 0; i < m_vehicles.size(); ++i)
     delete m_vehicles[i];
+
+  for (size_t i = 0; i < m_chromosomes.size(); ++i)
+  {
+    delete m_chromosomes[i];
+    delete m_chromosomesNext[i];
+  }
+
+  delete m_evolution;
+}
+
+
+void Simulation::initTweakVars(TwBar* bar)
+{
+  if (m_evolution)
+    m_evolution->initTweakVars(bar);
+
+  TwAddVarRW(bar, "MutChange", TW_TYPE_FLOAT, &Vehicle::Chromosome::mutationMaxChange, "min=0 max=10 step=0.01 group=Evolution");
 }
 
 void Simulation::subtickCallback(btDynamicsWorld* world, btScalar timeStep)
@@ -98,6 +119,7 @@ void Simulation::subtickCallback(btDynamicsWorld* world, btScalar timeStep)
             if (obB == v->physics()->getRigidBody())
             {
               v->kill();
+              break;
             }
           }
         }
@@ -112,9 +134,60 @@ void Simulation::update(double dt)
   m_bullet->world->stepSimulation(static_cast<btScalar>(dt), 10);
 
 
-  int n = numVehicles();
+
+  // update evolution process
+  int numAlive = 0;
+
+  size_t n = m_vehicles.size();
   for (int i = 0; i < n; ++i)
-    vehicle(i)->update(dt, this);
+  {
+    Vehicle* v = m_vehicles[i];
+
+    if (v->alive())
+    {
+      v->update(dt, this);
+
+      // kill vehicles in reverse dir
+      if (v->curTrackSegment() < 0)
+        v->kill();
+
+      // kill vehicles that don't make any progress
+      if ((glfwGetTime() - v->birthTime()) > 20.0f && v->curTrackSegment() < 2)
+        v->kill();
+    }
+
+    if (v->alive())
+      ++numAlive;
+    else
+      v->physics()->getRigidBody()->forceActivationState(DISABLE_SIMULATION);
+  }
+
+
+  if (!numAlive)
+  {
+    applyEvolution();
+
+    resetVehicles();
+  }
+}
+
+
+Vehicle* Simulation::bestVehicle() const
+{
+  float fitness = -1.0f;
+  Vehicle* v = 0;
+
+  for (size_t i = 0; i < m_vehicles.size(); ++i)
+  {
+    float d = m_vehicles[i]->curTrackDistance();
+    if (d > fitness && m_vehicles[i]->alive())
+    {
+      fitness = d;
+      v = m_vehicles[i];
+    }
+  }
+
+  return v;
 }
 
 void Simulation::initTrack()
@@ -215,6 +288,21 @@ void Simulation::initSensors()
 
 Vehicle* Simulation::createVehicle()
 {
+  btRaycastVehicle* bvehicle = createVehiclePhysics();
+  Vehicle* vehicle = new Vehicle(bvehicle);
+
+  if (m_sensorConfigStart.empty())
+    initSensors();
+
+  for (size_t i = 0; i < m_sensorConfigStart.size(); ++i)
+    vehicle->addSensor(m_sensorConfigStart[i], m_sensorConfigEnd[i]);
+
+  return vehicle;
+}
+
+
+btRaycastVehicle* Simulation::createVehiclePhysics()
+{
   if (!m_vehicleChassisShape.get())
   {
     m_vehicleChassisExtents = btVector3(1, 0.5, 2);
@@ -237,16 +325,55 @@ Vehicle* Simulation::createVehicle()
     m_vehicleChassisCompound->addChildShape(localTransform, m_vehicleChassisShape.get());
   }
 
+  return m_bullet->createUnmanagedVehicle(m_vehicleChassisCompound, 1200, btVector3(0.0, 1.0, 0.0), Vehicle::collisionGroup(), ~Vehicle::collisionGroup());
+}
 
-  if (m_sensorConfigStart.empty())
-    initSensors();
+void Simulation::applyEvolution()
+{
+  size_t n = m_vehicles.size();
+  if (m_chromosomes.empty())
+  {
+    m_chromosomes.resize(n, 0);
+    m_chromosomesNext.resize(n, 0);
 
+    for (size_t i = 0; i < n; ++i)
+    {
+      m_chromosomes[i] = new Vehicle::Chromosome(m_vehicles[i], &m_avgDrivenDistance);
+      m_chromosomesNext[i] = new Vehicle::Chromosome(m_vehicles[i], &m_avgDrivenDistance);
+    }
+  }
 
-  btRaycastVehicle* bvehicle = m_bullet->createUnmanagedVehicle(m_vehicleChassisCompound, 1200, btVector3(0.0, 1.0, 0.0), Vehicle::collisionGroup(), ~Vehicle::collisionGroup());
-  Vehicle* vehicle = new Vehicle(bvehicle);
+  m_avgDrivenDistance = 0.0f;
+  for (size_t i = 0; i < n; ++i)
+  {
+    Vehicle::Chromosome* c = dynamic_cast<Vehicle::Chromosome*>(m_chromosomes[i]);
+    c->readGenesFromVehicle();
 
-  for (size_t i = 0; i < m_sensorConfigStart.size(); ++i)
-    vehicle->addSensor(m_sensorConfigStart[i], m_sensorConfigEnd[i]);
+    m_avgDrivenDistance += c->vehicle->curTrackDistance();
+  }
+  m_avgDrivenDistance /= static_cast<float>(n);
 
-  return vehicle;
+  m_evolution->computeNewPopulation(m_chromosomes, m_chromosomesNext);
+  std::swap(m_chromosomes, m_chromosomesNext);
+  
+  for (size_t i = 0; i < n; ++i)
+  {
+    Vehicle::Chromosome* c = dynamic_cast<Vehicle::Chromosome*>(m_chromosomes[i]);
+    c->transferGenesToVehicle();
+  }
+}
+
+void Simulation::resetVehicles()
+{
+  size_t n = m_vehicles.size();
+  for (size_t i = 0; i < n; ++i)
+  {
+    Vehicle* v = m_vehicles[i];
+    
+    v->reset();
+
+    // replace with new bullet raycast vehicle
+    btRaycastVehicle* vphysics = createVehiclePhysics();
+    v->replacePhysics(vphysics, m_bullet->world);
+  }
 }

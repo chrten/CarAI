@@ -74,6 +74,7 @@ public:
 
 
   btRigidBody* body() const { return m_body; }
+  void body(btRigidBody* b) { m_body = b; }
 
 private:
 

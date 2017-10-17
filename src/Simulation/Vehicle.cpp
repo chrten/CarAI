@@ -10,12 +10,17 @@
 #include <algorithm>
 #include <cstdio>
 
+
+
+float Vehicle::Chromosome::mutationMaxChange = 1.3f;
+
+
 Vehicle::Vehicle(btRaycastVehicle* bvehicle)
   : m_vehicle(bvehicle), m_controller(0), m_neuralNetwork(0),
   m_bestSegment(0), m_curSegment(0), m_travelDir(0), m_bestDistance(0.0f), m_curDistance(0.0f),
   m_alive(true)
 {
-
+  m_birthTime = glfwGetTime();
 }
 
 Vehicle::~Vehicle()
@@ -77,6 +82,23 @@ void Vehicle::update(double dt, Simulation* sim)
 
   if (m_controller)
     m_controller->update(dt);
+}
+
+
+void Vehicle::replacePhysics(btRaycastVehicle* vehicle, btDynamicsWorld* world)
+{
+  if (m_vehicle)
+  {
+    world->removeRigidBody(m_vehicle->getRigidBody());
+    world->removeVehicle(m_vehicle);
+
+    delete m_vehicle->getRigidBody()->getMotionState();
+    delete m_vehicle->getRigidBody();
+
+    delete m_vehicle;
+  }
+  
+  m_vehicle = vehicle;
 }
 
 void Vehicle::addSensor(const btVector3& start, const btVector3& end)
@@ -176,15 +198,57 @@ void Vehicle::updateTrackPerformance(Simulation* sim)
       m_travelDir = -1;
 
     // update segment info
-    m_bestSegment = std::max(m_bestSegment, nearestSeg);
-    m_bestDistance = std::max(m_bestDistance, trackDist);
+    if ((!m_curSegment && nearestSeg == nsegs - 1))
+      m_travelDir = -1;
 
-    m_curSegment = nearestSeg;
-    m_curDistance = trackDist;
+    if ((m_curSegment + nsegs * 100) % nsegs != nearestSeg)
+      m_curSegment += m_travelDir;
+    
+    if (m_curSegment >= 0 && nearestSeg <= m_curSegment + 1)
+    {
+      m_bestSegment = std::max(m_bestSegment, nearestSeg);
+      m_bestDistance = std::max(m_bestDistance, trackDist);
+
+      m_curSegment = nearestSeg;
+      m_curDistance = trackDist;
+    }
   }
 }
 
+void Vehicle::reset()
+{
+  // reanimate vehicle and restore initial state of simulation
+  m_bestDistance = 0.0f;
+  m_curDistance = 0.0f;
+  m_bestSegment = 0;
+  m_curSegment = 0;
 
+  m_alive = true;
+  m_birthTime = glfwGetTime();
+
+  btRigidBody* body = m_vehicle->getRigidBody();
+
+  body->setAngularVelocity(btVector3(0.0f, 0.0f, 0.0f));
+  //body->setAngularFactor(0.0f);
+  body->setLinearVelocity(btVector3(0.0f, 0.0f, 0.0f));
+
+  btTransform initState;
+  initState.setIdentity();
+  body->setWorldTransform(initState);
+  body->getMotionState()->setWorldTransform(initState);
+  body->forceActivationState(DISABLE_DEACTIVATION);
+  body->clearForces();
+
+
+  for (int i = 0; i < m_vehicle->getNumWheels(); ++i)
+  {
+    m_vehicle->setSteeringValue(0, i);
+    m_vehicle->applyEngineForce(0, i);
+    m_vehicle->setBrake(0, i);
+  }
+
+  m_birthTime = glfwGetTime();
+}
 
 VehicleController::VehicleController(Vehicle* vehicle)
   : m_vehicle(vehicle),
@@ -327,4 +391,75 @@ int VehicleControllerNeuralNet::dof()
 {
   // dofs: steer, engine force
   return 2;
+}
+
+
+void Vehicle::Chromosome::crossover(const EvolutionProcess::Chromosome* _other, float prob, EvolutionProcess::Chromosome* _resultA, EvolutionProcess::Chromosome* _resultB) const
+{
+  const Chromosome* other = dynamic_cast<const Chromosome*>(_other);
+  Chromosome* resultA = dynamic_cast<Chromosome*>(_resultA);
+  Chromosome* resultB = dynamic_cast<Chromosome*>(_resultB);
+
+  size_t n = genes.size();
+
+  for (size_t i = 0; i < n; ++i)
+  {
+    const Chromosome* a = this;
+    const Chromosome* b = other;
+
+    float u = static_cast<float>(std::rand()) / RAND_MAX;
+    if (u < prob)
+      std::swap(a, b);
+    
+    resultA->genes[i] = a->genes[i];
+    if (resultB)
+      resultB->genes[i] = b->genes[i];
+  }
+}
+
+void Vehicle::Chromosome::mutate(float prob)
+{
+  size_t n = genes.size();
+
+  for (size_t i = 0; i < n; ++i)
+  {
+    float u = static_cast<float>(std::rand()) / RAND_MAX;
+    if (u < prob)
+    {
+      float m = static_cast<float>(std::rand()) / RAND_MAX * 2.0f - 1.0f;
+      genes[i] += m * mutationMaxChange;
+    }
+  }
+}
+
+float Vehicle::Chromosome::fitness() const
+{
+  return vehicle->curTrackDistance() / *avgDrivenDistance;
+}
+
+void Vehicle::Chromosome::readGenesFromVehicle()
+{
+  NeuralNetwork* net = vehicle->neuralNetwork();
+  int nl = net->numLinks();
+
+  genes.clear();
+  for (int i = 0; i < nl; ++i)
+  {
+    NeuralNetwork::LayerLinks* links = net->links(i);
+    genes.insert(genes.end(), links->weights.begin(), links->weights.end());
+  }
+}
+
+void Vehicle::Chromosome::transferGenesToVehicle() const
+{
+  NeuralNetwork* net = vehicle->neuralNetwork();
+  int nl = net->numLinks();
+
+  int iter = 0;
+  for (int i = 0; i < nl; ++i)
+  {
+    NeuralNetwork::LayerLinks* links = net->links(i);
+    for (size_t k = 0; k < links->weights.size(); ++k)
+      links->weights[k] = genes[iter++];
+  }
 }

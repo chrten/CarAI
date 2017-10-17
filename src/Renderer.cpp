@@ -16,6 +16,9 @@ Renderer::Renderer()
 
   m_sphereMesh = new GL::Mesh("../data/obj/sphere.obj");
   m_boxMesh = new GL::Mesh("../data/obj/cube.obj");
+
+
+  m_bar = TwNewBar("TweakBar");
 }
 
 Renderer::~Renderer()
@@ -159,20 +162,20 @@ void Renderer::draw(double time, Simulation* sim, Camera* cam)
 
   // draw tweakbars
 
-  if (!m_bar)
-  {
-    m_bar = TwNewBar("TweakBar");
-
-    TwAddVarRO(m_bar, "seg", TW_TYPE_INT32, &sim->vehicle(sim->numVehicles() - 1)->curTrackSegment(), "");
-    TwAddVarRO(m_bar, "dist", TW_TYPE_FLOAT, &sim->vehicle(sim->numVehicles() - 1)->curTrackDistance(), "");
-
-    TwAddVarRO(m_bar, "bestSeg", TW_TYPE_INT32, &sim->vehicle(sim->numVehicles() - 1)->bestTrackSegment(), "");
-    TwAddVarRO(m_bar, "bestDist", TW_TYPE_FLOAT, &sim->vehicle(sim->numVehicles() - 1)->bestTrackDistance(), "");
-
-    TwAddVarRO(m_bar, "traveldir", TW_TYPE_INT32, &sim->vehicle(sim->numVehicles() - 1)->travelDir(), "");
-    TwAddVarRO(m_bar, "alive", TW_TYPE_BOOLCPP, &sim->vehicle(sim->numVehicles() - 1)->alive(), "");
-
-  }
+//   if (!m_bar)
+//   {
+//     m_bar = TwNewBar("TweakBar");
+// 
+//     TwAddVarRO(m_bar, "seg", TW_TYPE_INT32, &sim->vehicle(sim->numVehicles() - 1)->curTrackSegment(), "");
+//     TwAddVarRO(m_bar, "dist", TW_TYPE_FLOAT, &sim->vehicle(sim->numVehicles() - 1)->curTrackDistance(), "");
+// 
+//     TwAddVarRO(m_bar, "bestSeg", TW_TYPE_INT32, &sim->vehicle(sim->numVehicles() - 1)->bestTrackSegment(), "");
+//     TwAddVarRO(m_bar, "bestDist", TW_TYPE_FLOAT, &sim->vehicle(sim->numVehicles() - 1)->bestTrackDistance(), "");
+// 
+//     TwAddVarRO(m_bar, "traveldir", TW_TYPE_INT32, &sim->vehicle(sim->numVehicles() - 1)->travelDir(), "");
+//     TwAddVarRO(m_bar, "alive", TW_TYPE_BOOLCPP, &sim->vehicle(sim->numVehicles() - 1)->alive(), "");
+// 
+//   }
 
   TwDraw();
 }

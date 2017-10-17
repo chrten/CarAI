@@ -102,9 +102,44 @@ btRaycastVehicle* BulletInterface::createUnmanagedVehicle(std::shared_ptr<btColl
   // create rigid body for chassis
   btRigidBody* chassisBody = createUnmanagedRigidBody(chassisShape, mass, pos, group, mask, true);
 
-  // create vehicle
-  btVehicleRaycaster* vehicleRayCaster = new btDefaultVehicleRaycaster(world);
+  // create custom vehicle raycast to fix the collision filter bug
+  struct CustomVehicleRaycaster : public btVehicleRaycaster
+  {
+    CustomVehicleRaycaster(btDynamicsWorld* world, int group, int mask) : m_dynamicsWorld(world), m_group(group), m_mask(mask) {}
 
+    void* castRay(const btVector3& from, const btVector3& to, btVehicleRaycasterResult& result)
+    {
+      btCollisionWorld::ClosestRayResultCallback rayCallback(from, to);
+
+      rayCallback.m_collisionFilterGroup = m_group;
+      rayCallback.m_collisionFilterMask = m_mask;
+
+      m_dynamicsWorld->rayTest(from, to, rayCallback);
+
+      if (rayCallback.hasHit())
+      {
+
+        const btRigidBody* body = btRigidBody::upcast(rayCallback.m_collisionObject);
+        if (body && body->hasContactResponse())
+        {
+          result.m_hitPointInWorld = rayCallback.m_hitPointWorld;
+          result.m_hitNormalInWorld = rayCallback.m_hitNormalWorld;
+          result.m_hitNormalInWorld.normalize();
+          result.m_distFraction = rayCallback.m_closestHitFraction;
+          return (void*)body;
+        }
+      }
+      return 0;
+    }
+
+    btDynamicsWorld* m_dynamicsWorld;
+    int m_group;
+    int m_mask;
+  };
+
+  btVehicleRaycaster* vehicleRayCaster = new CustomVehicleRaycaster(world, group, mask);
+
+  // create vehicle
   btRaycastVehicle::btVehicleTuning tuning;
   btRaycastVehicle* vehicle = new btRaycastVehicle(tuning, chassisBody, vehicleRayCaster);
 

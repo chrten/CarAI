@@ -21,6 +21,8 @@ public:
 
   void framebufferSize(int w, int h) { m_width = w; m_height = h; }
 
+  TwBar* tweakbar() { return m_bar; }
+
 
   // animate
   virtual void update(double dt) {}

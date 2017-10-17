@@ -3,6 +3,7 @@
 #include "../UserInputController.h"
 
 #include "NeuralNetwork.h"
+#include "Evolution.h"
 
 #include "../BulletInterface.h"
 
@@ -26,6 +27,7 @@ public:
   void update(double dt, Simulation* sim);
 
 
+  void replacePhysics(btRaycastVehicle* vehicle, btDynamicsWorld* world);
   btRaycastVehicle* physics() { return m_vehicle; }
   VehicleController* controller() { return m_controller; }
 
@@ -74,6 +76,32 @@ public:
 
   const bool& alive() const { return m_alive; }
   void kill() { m_alive = false; }
+  double birthTime() const { return m_birthTime; }
+  void reset();
+
+
+  struct Chromosome : public EvolutionProcess::Chromosome
+  {
+    Chromosome(Vehicle* v, float* _avgDrivenDistance) : vehicle(v), avgDrivenDistance(_avgDrivenDistance) { readGenesFromVehicle(); }
+
+    void crossover(const EvolutionProcess::Chromosome* other, float prob, EvolutionProcess::Chromosome* resultA, EvolutionProcess::Chromosome* resultB) const;
+
+    void mutate(float prob);
+
+    float fitness() const;
+
+
+    void readGenesFromVehicle();
+    void transferGenesToVehicle() const;
+
+
+    Vehicle* vehicle;
+    std::vector<float> genes;
+
+    float* avgDrivenDistance;
+
+    static float mutationMaxChange;
+  };
 
 private:
 
@@ -91,7 +119,6 @@ private:
 
   NeuralNetwork* m_neuralNetwork;
 
-
   // performance on track
   int m_bestSegment;
   int m_curSegment;
@@ -100,6 +127,7 @@ private:
   float m_curDistance;
 
   bool m_alive;
+  double m_birthTime;
 };
 
 
