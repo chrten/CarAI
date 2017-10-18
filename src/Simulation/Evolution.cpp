@@ -69,6 +69,9 @@ void EvolutionProcess::computeNewPopulation(const std::vector<Chromosome*>& popu
 
 void EvolutionProcess::selection(const std::vector<Chromosome*>& population, float totalFitness, Chromosome** a, Chromosome** b) const
 {
+  // select two chromosomes from population via sampling:
+  // uniform random distribution proportional to chromosome fitness
+
   int found = 0;
   size_t n = population.size();
   int maxTries = 10;

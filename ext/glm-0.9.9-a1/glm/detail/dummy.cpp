@@ -165,8 +165,9 @@ glm::vec3 lighting
 }
 */
 
-int main()
-{
+
+//int main()
+//{
 /*
 	glm::vec1 o(1);
 	glm::vec2 a(1);
@@ -182,5 +183,5 @@ int main()
 	float b0 = normalizeDotB(b, b);
 	float c0 = normalizeDotC(c, c);
 */
-	return 0;
-}
+//	return 0;
+//}

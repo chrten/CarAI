@@ -124,6 +124,8 @@ void Simulation::initTweakVars(TwBar* bar)
 
 void Simulation::subtickCallback(btDynamicsWorld* world, btScalar timeStep)
 {
+  // find and mark all vehicles colliding with the track
+
   Simulation* sim = static_cast<Simulation*>(world->getWorldUserInfo());
 
   int numManifolds = world->getDispatcher()->getNumManifolds();
@@ -168,12 +170,11 @@ void Simulation::update(double dt)
   // update bullet world
   m_bullet->world->stepSimulation(static_cast<btScalar>(dt), 10);
 
-
-
   // update evolution process
   m_numVehiclesAlive = 0;
   m_bestDrivenDistance = 0.0f;
 
+  // update vehicle states
   size_t n = m_vehicles.size();
   for (int i = 0; i < n; ++i)
   {
@@ -206,6 +207,7 @@ void Simulation::update(double dt)
     m_vehicleUser->update(dt, this);
 
 
+  // evolve population when all agents are dead
   if (!m_numVehiclesAlive && !m_vehicles.empty())
   {
     applyEvolution();
@@ -283,9 +285,8 @@ void Simulation::initTrack()
 
     file.close();
 
-
-    std::reverse(m_trackSegments.begin(), m_trackSegments.end());
-
+    if (m_settings->GetBoolean("track", "revertSegmentDir", false))
+      std::reverse(m_trackSegments.begin(), m_trackSegments.end());
 
     // compute accumulated segment distance
     m_trackSegmentDist.resize(m_trackSegments.size() + 1, 0.0f);

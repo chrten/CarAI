@@ -51,6 +51,7 @@ private:
 
   void resetVehicles();
 
+  // iterate over all contact pairs in bullet collision lib
   static void subtickCallback(btDynamicsWorld* world, btScalar timeStep);
 
 
