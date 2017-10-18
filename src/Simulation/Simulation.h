@@ -38,6 +38,8 @@ public:
 
   btRigidBody* trackBody() { return m_trackBody; }
 
+  Vehicle* userVehicle() { return m_vehicleUser; }
+
 private:
 
   void initTrack();

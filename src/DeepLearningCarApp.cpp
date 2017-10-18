@@ -86,9 +86,6 @@ void DeepLearningCarApp::init()
 
   // ----------------------------------------------------
 
-//   m_vehicleController = new VehicleControllerUser(m_vehicle);
-//   addUserInputController(m_vehicleController);
-
   if (m_settings->Get("simulation", "camera", "userCam") == "followCam")
   {
     // use vehicle follow cam
@@ -123,6 +120,9 @@ void DeepLearningCarApp::updatePhysics(double dt)
   if (followCam)
   {
     Vehicle* best = m_simulation->bestVehicle();
+
+    if (m_simulation->userVehicle())
+      best = m_simulation->userVehicle();
 
     if (best)
       followCam->body(best->physics()->getRigidBody());

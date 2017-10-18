@@ -70,8 +70,8 @@ public:
 
   const int& bestTrackSegment() const { return m_bestSegment; }
   const int& curTrackSegment() const { return m_curSegment; }
-  double  curTrackSegmentEntryTime() const { return m_curSegmentEntryTime; }
-  int curLap() const { return m_curLap; }
+  const double& curTrackSegmentEntryTime() const { return m_curSegmentEntryTime; }
+  const int& curLap() const { return m_curLap; }
 
   const float& bestTrackDistance() const { return m_bestDistance; }
   const float& curTrackDistance() const { return m_curDistance; }

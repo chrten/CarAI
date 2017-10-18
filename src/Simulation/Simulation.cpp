@@ -58,8 +58,11 @@ Simulation::Simulation(INIReader* settings, Application* app)
 
   
   // user controller vehicle
-//   m_vehicleUser = createVehicle();
-//   m_vehicleUser->setControllerUser(m_app);
+  if (settings->GetBoolean("simulation", "enableUserCar", false))
+  {
+    m_vehicleUser = createVehicle();
+    m_vehicleUser->setControllerUser(m_app);
+  }
 
 
   m_evolution = new EvolutionProcess(0.25f, 0.5f, 0.1f);
@@ -108,6 +111,15 @@ void Simulation::initTweakVars(TwBar* bar)
   TwAddVarRO(bar, "BestDistance", TW_TYPE_FLOAT, &m_bestDrivenDistance, "group=Performance");
   TwAddVarRO(bar, "AvgDistance", TW_TYPE_FLOAT, &m_avgDrivenDistance, "group=Performance");
   TwAddVarRO(bar, "NumAlive", TW_TYPE_INT32, &m_numVehiclesAlive, "group=Performance");
+
+
+  if (m_vehicleUser)
+  {
+    TwAddVarRO(bar, "Distance", TW_TYPE_FLOAT, &m_vehicleUser->curTrackDistance(), "group=UserCar");
+    TwAddVarRO(bar, "Segment", TW_TYPE_INT32, &m_vehicleUser->curTrackSegment(), "group=UserCar");
+    TwAddVarRO(bar, "EntryTime", TW_TYPE_DOUBLE, &m_vehicleUser->curTrackSegmentEntryTime(), "group=UserCar");
+    TwAddVarRO(bar, "Lap", TW_TYPE_INT32, &m_vehicleUser->curLap(), "group=UserCar");
+  }
 }
 
 void Simulation::subtickCallback(btDynamicsWorld* world, btScalar timeStep)
@@ -190,8 +202,11 @@ void Simulation::update(double dt)
     m_bestDrivenDistance = std::max(v->curTrackDistance(), m_bestDrivenDistance);
   }
 
+  if (m_vehicleUser)
+    m_vehicleUser->update(dt, this);
 
-  if (!m_numVehiclesAlive)
+
+  if (!m_numVehiclesAlive && !m_vehicles.empty())
   {
     applyEvolution();
 

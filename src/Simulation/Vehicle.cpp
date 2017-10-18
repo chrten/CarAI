@@ -175,8 +175,8 @@ void Vehicle::updateTrackPerformance(Simulation* sim)
     // project vehicle pos onto segment
     btVector3 a = segments[i];
     btVector3 n = segments[(i + 1) % nsegs] - a;
-    btScalar len = n.norm();
-    n /= len;
+    btScalar len = n.safeNorm();
+    n.safeNormalize();
 
     btScalar p = (vpos - a).dot(n);
 
@@ -213,29 +213,21 @@ void Vehicle::updateTrackPerformance(Simulation* sim)
       m_travelDir = -1;
 
     // update segment info
-    if ((!m_curSegment && nearestSeg == nsegs - 1))
-      m_travelDir = -1;
-
-    int newSegment = m_curSegment;
-    if ((m_curSegment + nsegs * 100) % nsegs != nearestSeg)
-      newSegment += m_travelDir;
-    
-    if (m_curDistance >= distances.back() && newSegment == 0)
-      ++m_curLap;
-
-    if ((newSegment >= 0 && nearestSeg <= newSegment + 1) || m_curLap)
+    if (m_travelDir > 0 && (nearestSeg < m_bestSegment + 5))
     {
+      if (!nearestSeg && m_curSegment == nsegs - 1)
+        ++m_curLap;
+
       m_bestSegment = std::max(m_bestSegment, nearestSeg);
       m_bestDistance = std::max(m_bestDistance, trackDist);
 
       m_curDistance = trackDist + static_cast<float>(m_curLap) * distances.back();
 
-      if (m_curSegment != newSegment)
+      if (m_curSegment != nearestSeg)
         m_curSegmentEntryTime = glfwGetTime();
-
+    
       m_curSegment = nearestSeg;
     }
-    
   }
 }
 
