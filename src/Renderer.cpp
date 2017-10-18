@@ -46,34 +46,6 @@ void Renderer::draw(double time, Simulation* sim, Camera* cam)
   glm::mat4 viewProj = cam->proj() * cam->view();
 
 
-//   if (0 && m_sphereBody && m_sphereMesh)
-//   {
-//     btVector3 spherePos = m_sphereBody->getCenterOfMassPosition();
-//     glm::mat4 wvp = viewProj;
-//     wvp = glm::translate(wvp, glm::vec3(spherePos[0], spherePos[1], spherePos[2]));
-// 
-//     m_singleColorProg->use();
-//     m_singleColorProg->setUniform4f("color", glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
-//     m_singleColorProg->setUniformMatrix4f("WVP", wvp);
-// 
-//     m_sphereMesh->draw();
-//   }
-// 
-//   if (0 && m_vehicle)
-//   {
-//     glm::mat4 wvp;
-//     m_vehicle->getChassisWorldTransform().getOpenGLMatrix((float*)&wvp);
-//     wvp = viewProj * wvp;
-//     wvp = glm::translate(wvp, glm::vec3(m_vehicleChassisOffset[0], m_vehicleChassisOffset[1], m_vehicleChassisOffset[2]));
-//     wvp = glm::scale(wvp, glm::vec3(m_vehicleChassisExtents[0], m_vehicleChassisExtents[1], m_vehicleChassisExtents[2]) * 2.0f);
-// 
-//     m_singleColorProg->use();
-//     m_singleColorProg->setUniform4f("color", glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
-//     m_singleColorProg->setUniformMatrix4f("WVP", wvp);
-// 
-//     m_boxMesh->draw();
-//   }
-
   if (m_trackMesh)
   {
     m_singleColorProg->use();
@@ -83,8 +55,8 @@ void Renderer::draw(double time, Simulation* sim, Camera* cam)
     m_trackMesh->draw();
 
     // disable visualization in debug drawer to prevent crash
-    int f = sim->m_trackBody->getCollisionFlags();
-    sim->m_trackBody->setCollisionFlags(f | btCollisionObject::CF_DISABLE_VISUALIZE_OBJECT);
+    int f = sim->trackBody()->getCollisionFlags();
+    sim->trackBody()->setCollisionFlags(f | btCollisionObject::CF_DISABLE_VISUALIZE_OBJECT);
   }
 
   glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -146,10 +118,10 @@ void Renderer::draw(double time, Simulation* sim, Camera* cam)
     bulletDebugDrawer.setDebugMode(btIDebugDraw::DBG_DrawWireframe);
     bulletDebugDrawer.setViewProj(viewProj);
 
-    sim->m_bullet->world->setDebugDrawer(&bulletDebugDrawer);
+    sim->world()->setDebugDrawer(&bulletDebugDrawer);
 
     bulletDebugDrawer.beginDraw();
-    sim->m_bullet->world->debugDrawWorld();
+    sim->world()->debugDrawWorld();
     bulletDebugDrawer.endDraw();
   }
 
@@ -161,22 +133,6 @@ void Renderer::draw(double time, Simulation* sim, Camera* cam)
 
 
   // draw tweakbars
-
-//   if (!m_bar)
-//   {
-//     m_bar = TwNewBar("TweakBar");
-// 
-//     TwAddVarRO(m_bar, "seg", TW_TYPE_INT32, &sim->vehicle(sim->numVehicles() - 1)->curTrackSegment(), "");
-//     TwAddVarRO(m_bar, "dist", TW_TYPE_FLOAT, &sim->vehicle(sim->numVehicles() - 1)->curTrackDistance(), "");
-// 
-//     TwAddVarRO(m_bar, "bestSeg", TW_TYPE_INT32, &sim->vehicle(sim->numVehicles() - 1)->bestTrackSegment(), "");
-//     TwAddVarRO(m_bar, "bestDist", TW_TYPE_FLOAT, &sim->vehicle(sim->numVehicles() - 1)->bestTrackDistance(), "");
-// 
-//     TwAddVarRO(m_bar, "traveldir", TW_TYPE_INT32, &sim->vehicle(sim->numVehicles() - 1)->travelDir(), "");
-//     TwAddVarRO(m_bar, "alive", TW_TYPE_BOOLCPP, &sim->vehicle(sim->numVehicles() - 1)->alive(), "");
-// 
-//   }
-
   TwDraw();
 }
 

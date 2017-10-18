@@ -1,0 +1,58 @@
+# 3ds Max Wavefront OBJ Exporter v0.97b - (c)2007 guruware
+# File Created: 18.10.2017 19:27:22
+
+#
+# shape Line001
+#
+
+v  -0.4973 1.0000 0.7243
+v  -3.5480 1.0000 1.4961
+# 2 vertices
+
+g Line001
+l 1 2
+
+#
+# shape Line002
+#
+
+v  0.5022 1.0000 0.7243
+v  3.7862 1.0000 1.5126
+# 2 vertices
+
+g Line002
+l 3 4
+
+#
+# shape Line004
+#
+
+v  0.0209 1.0000 0.9565
+v  0.0209 1.0000 4.6841
+# 2 vertices
+
+g Line004
+l 5 6
+
+#
+# shape Line005
+#
+
+v  -0.5070 1.0000 0.9483
+v  -3.3933 1.0000 4.1386
+# 2 vertices
+
+g Line005
+l 7 8
+
+#
+# shape Line006
+#
+
+v  0.4965 1.0000 0.9588
+v  3.2034 1.0000 3.9461
+# 2 vertices
+
+g Line006
+l 9 10
+

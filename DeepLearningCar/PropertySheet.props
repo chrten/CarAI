@@ -7,7 +7,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\ext\glfw-3.2.1\include;..\ext\glad\include;..\ext\glm-0.9.9-a1;..\ext\assimp-4.0.1\include;..\ext\AntTweakBar\include;..\ext\bullet3-2.87\src;..\ext\lodepng-20170917;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\ext\glfw-3.2.1\include;..\ext\glad\include;..\ext\glm-0.9.9-a1;..\ext\assimp-4.0.1\include;..\ext\AntTweakBar\include;..\ext\bullet3-2.87\src;..\ext\lodepng-20170917;..\ext\inih\cpp;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>..\ext\glfw-3.2.1\lib;..\ext\glad\lib;..\ext\assimp-4.0.1\lib;..\ext\AntTweakBar\lib;..\ext\bullet3-2.87\lib</AdditionalLibraryDirectories>

@@ -63,6 +63,12 @@
     <ClCompile Include="..\src\Simulation\Evolution.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\ext\inih\cpp\INIReader.cpp">
+      <Filter>ext</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ext\inih\ini.c">
+      <Filter>ext</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\Application.h">
@@ -103,6 +109,12 @@
     </ClInclude>
     <ClInclude Include="..\src\Simulation\Evolution.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ext\inih\cpp\INIReader.h">
+      <Filter>ext</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ext\inih\ini.h">
+      <Filter>ext</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

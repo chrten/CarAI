@@ -15,19 +15,7 @@ class Simulation
 {
 public:
 
-  struct Desc 
-  {
-    Desc() : numCars(20), trackScale(1.0f), trackGroundLevel(1.0f) {}
-
-    int numCars;
-
-    std::string trackHeightsFilename;
-    std::string trackSegmentsFilename;
-    float trackScale;
-    float trackGroundLevel;
-  };
-
-  Simulation(const Desc& desc, Application* app);
+  Simulation(INIReader* settings, Application* app);
   virtual ~Simulation();
 
 
@@ -48,10 +36,11 @@ public:
   const std::vector<float>& trackSegmentDist() const { return m_trackSegmentDist; }
 
 
+  btRigidBody* trackBody() { return m_trackBody; }
+
 private:
 
   void initTrack();
-  void initSensors();
 
   Vehicle* createVehicle();
   btRaycastVehicle* createVehiclePhysics();
@@ -63,9 +52,22 @@ private:
   static void subtickCallback(btDynamicsWorld* world, btScalar timeStep);
 
 
-public:
+private:
+
+  struct Desc
+  {
+    Desc() : numCars(20), trackScale(1.0f), trackGroundLevel(1.0f) {}
+
+    int numCars;
+
+    std::string trackHeightsFilename;
+    std::string trackSegmentsFilename;
+    float trackScale;
+    float trackGroundLevel;
+  };
 
   Desc m_desc;
+  INIReader* m_settings;
 
   Application* m_app;
 
@@ -89,13 +91,10 @@ public:
   std::vector<EvolutionProcess::Chromosome*> m_chromosomes;
   std::vector<EvolutionProcess::Chromosome*> m_chromosomesNext;
   float m_avgDrivenDistance;
+  float m_bestDrivenDistance;
+  int m_numVehiclesAlive;
 
   EvolutionProcess* m_evolution;
-
-  // distance sensor configuration for each vehicle
-  std::vector<btVector3> m_sensorConfigStart;
-  std::vector<btVector3> m_sensorConfigEnd;
-
 
   std::vector<unsigned char> m_trackHeights;
   btRigidBody* m_trackBody;

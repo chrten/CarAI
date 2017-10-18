@@ -52,10 +52,16 @@ void EvolutionProcess::computeNewPopulation(const std::vector<Chromosome*>& popu
     size_t indexA = i*2, indexB = i*2+1;
     if (indexA >= newPopulation.size()) 
       break;
-    a->crossover(b, m_crossRate, newPopulation[indexA], indexB >= newPopulation.size() ? 0 : newPopulation[indexB]);
+    Chromosome* newA = newPopulation[indexA];
+    Chromosome* newB = indexB >= newPopulation.size() ? 0 : newPopulation[indexB];
+
+    a->crossover(b, m_crossRate, newA, newB);
 
     if (static_cast<float>(std::rand()) / RAND_MAX < m_mutationRate)
-      a->mutate(m_mutationGeneRate);
+      newA->mutate(m_mutationGeneRate);
+
+    if (newB && static_cast<float>(std::rand()) / RAND_MAX < m_mutationRate)
+      newB->mutate(m_mutationGeneRate);
   }
 
   ++m_generation;

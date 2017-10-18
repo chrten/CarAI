@@ -20,6 +20,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\ext\glad\src\glad.c" />
+    <ClCompile Include="..\ext\inih\cpp\INIReader.cpp" />
+    <ClCompile Include="..\ext\inih\ini.c" />
     <ClCompile Include="..\ext\lodepng-20170917\lodepng.cpp" />
     <ClCompile Include="..\src\Application.cpp" />
     <ClCompile Include="..\src\BulletInterface.cpp" />
@@ -36,6 +38,8 @@
     <ClCompile Include="..\src\UserInputController.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\ext\inih\cpp\INIReader.h" />
+    <ClInclude Include="..\ext\inih\ini.h" />
     <ClInclude Include="..\ext\lodepng-20170917\lodepng.h" />
     <ClInclude Include="..\src\Application.h" />
     <ClInclude Include="..\src\BulletInterface.h" />

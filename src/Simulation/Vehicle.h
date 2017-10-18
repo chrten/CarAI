@@ -7,6 +7,8 @@
 
 #include "../BulletInterface.h"
 
+#include <IniReader.h>
+
 
 class VehicleController;
 class Application;
@@ -16,13 +18,13 @@ class Vehicle
 {
 public:
 
-  Vehicle(btRaycastVehicle* bvehicle);
+  Vehicle(btRaycastVehicle* bvehicle, INIReader* settings);
   virtual ~Vehicle();
 
 
   void setControllerRand();
   void setControllerUser(Application* app);
-  void setControllerNeuralNet();
+  void setControllerNeuralNet(bool enableBrake);
 
   void update(double dt, Simulation* sim);
 
@@ -68,11 +70,14 @@ public:
 
   const int& bestTrackSegment() const { return m_bestSegment; }
   const int& curTrackSegment() const { return m_curSegment; }
+  double  curTrackSegmentEntryTime() const { return m_curSegmentEntryTime; }
+  int curLap() const { return m_curLap; }
 
   const float& bestTrackDistance() const { return m_bestDistance; }
   const float& curTrackDistance() const { return m_curDistance; }
 
   const int& travelDir() const { return m_travelDir; }
+
 
   const bool& alive() const { return m_alive; }
   void kill() { m_alive = false; }
@@ -103,11 +108,30 @@ public:
     static float mutationMaxChange;
   };
 
+
+
+
+  float steerMax() const { return m_steerMax; }
+  void steerMax(float f) { m_steerMax = f; }
+
+  float engineForceFwdMax() const { return m_engineForceFwdMax; }
+  void engineForceFwdMax(float f) { m_engineForceFwdMax = f; }
+
+  float engineForceRevMax() const { return m_engineForceRevMax; }
+  void engineForceRevMax(float f) { m_engineForceRevMax = f; }
+
+  float brakeMax() const { return m_brakeMax; }
+  void brakeMax(float f) { m_brakeMax = f; }
+
+
 private:
 
   // compute distance from start to current position
   // (distance from start to projection of vehicle onto nearest track segment)
   void updateTrackPerformance(Simulation* sim);
+
+
+  void initSensors(INIReader* settings);
 
 
 private:
@@ -119,12 +143,28 @@ private:
 
   NeuralNetwork* m_neuralNetwork;
 
+
+  // distance sensor configuration
+  static std::string m_sensorConfigFile;
+  static std::vector<btVector3> m_sensorConfig; // interleaved line endpoints of distance sensors
+
+
+
+  // vehicle limits
+  btScalar m_steerMax;
+  btScalar m_engineForceFwdMax;
+  btScalar m_engineForceRevMax;
+  btScalar m_brakeMax;
+
+
   // performance on track
   int m_bestSegment;
   int m_curSegment;
+  double m_curSegmentEntryTime;
   int m_travelDir; // -1 : reverse, 0 : stop, 1 : forward
   float m_bestDistance;
   float m_curDistance;
+  int m_curLap;
 
   bool m_alive;
   double m_birthTime;
@@ -142,11 +182,6 @@ public:
 protected:
 
   Vehicle* m_vehicle;
-
-  btScalar m_steerMax;
-  btScalar m_engineForceFwdMax;
-  btScalar m_engineForceRevMax;
-  btScalar m_brakeMax;
 };
 
 
@@ -174,10 +209,14 @@ class VehicleControllerNeuralNet : public VehicleController
 {
 public:
 
-  VehicleControllerNeuralNet(Vehicle* vehicle);
+  VehicleControllerNeuralNet(Vehicle* vehicle, bool enableBrake = false);
 
   void update(double dt);
 
   // return degrees of freedom
-  static int dof();
+  int dof();
+
+private:
+
+  bool m_enableBrake;
 };

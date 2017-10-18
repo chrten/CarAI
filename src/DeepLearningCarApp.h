@@ -24,6 +24,14 @@ public:
   virtual void updatePhysics(double dt);
 
 
+  void camController(CameraController* camControl);
+  CameraController* camController() { return m_camControl; }
+
+  Simulation* simulation() { return m_simulation; }
+
+  Camera* cam() { return m_cam; }
+
+
 private:
 
   // camera user controls
@@ -33,5 +41,8 @@ private:
   Simulation* m_simulation;
   
   Renderer* m_renderer;
+
+  // application settings
+  INIReader* m_settings;
 };
 

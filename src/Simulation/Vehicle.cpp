@@ -7,20 +7,36 @@
 #include "../Application.h"
 
 #include <iostream>
+#include <fstream>
 #include <algorithm>
 #include <cstdio>
 
 
 
-float Vehicle::Chromosome::mutationMaxChange = 1.3f;
+float Vehicle::Chromosome::mutationMaxChange = 0.6f;
+
+std::string Vehicle::m_sensorConfigFile = "";
+std::vector<btVector3> Vehicle::m_sensorConfig;
 
 
-Vehicle::Vehicle(btRaycastVehicle* bvehicle)
+Vehicle::Vehicle(btRaycastVehicle* bvehicle, INIReader* settings)
   : m_vehicle(bvehicle), m_controller(0), m_neuralNetwork(0),
-  m_bestSegment(0), m_curSegment(0), m_travelDir(0), m_bestDistance(0.0f), m_curDistance(0.0f),
+  m_steerMax(0.6f),
+  m_engineForceFwdMax(5000.0f), m_engineForceRevMax(-3000.0f),
+  m_brakeMax(500.0f),
+  m_bestSegment(0), m_curSegment(0), m_travelDir(0), m_bestDistance(0.0f), m_curDistance(0.0f), m_curLap(0),
   m_alive(true)
 {
   m_birthTime = glfwGetTime();
+  m_curSegmentEntryTime = m_birthTime;
+
+  initSensors(settings);
+
+
+  m_steerMax = static_cast<float>(settings->GetReal("vehicle", "steerMax", m_steerMax));
+  m_engineForceFwdMax = static_cast<float>(settings->GetReal("vehicle", "engineForceFwdMax", m_engineForceFwdMax));
+  m_engineForceRevMax = static_cast<float>(settings->GetReal("vehicle", "engineForceRevMax", m_engineForceRevMax));
+  m_brakeMax = static_cast<float>(settings->GetReal("vehicle", "brakeMax", m_brakeMax));
 }
 
 Vehicle::~Vehicle()
@@ -47,10 +63,10 @@ void Vehicle::setControllerUser(Application* app)
 }
 
 
-void Vehicle::setControllerNeuralNet()
+void Vehicle::setControllerNeuralNet(bool enableBrake)
 {
   delete m_controller;
-  m_controller = new VehicleControllerNeuralNet(this);
+  m_controller = new VehicleControllerNeuralNet(this, enableBrake);
 }
 
 void Vehicle::update(double dt, Simulation* sim)
@@ -131,8 +147,7 @@ void Vehicle::initNeuralNetwork(const std::vector<int>& internalLayerSize)
     m_neuralNetwork->addLayer(internalLayerSize[i]);
 
   // output layer
-  m_neuralNetwork->addLayer(VehicleControllerNeuralNet::dof());
-
+  m_neuralNetwork->addLayer(dynamic_cast<VehicleControllerNeuralNet*>(m_controller)->dof());
 
   // init with random weights
   for (int i = 0; i < m_neuralNetwork->numLinks(); ++i)
@@ -201,19 +216,84 @@ void Vehicle::updateTrackPerformance(Simulation* sim)
     if ((!m_curSegment && nearestSeg == nsegs - 1))
       m_travelDir = -1;
 
+    int newSegment = m_curSegment;
     if ((m_curSegment + nsegs * 100) % nsegs != nearestSeg)
-      m_curSegment += m_travelDir;
+      newSegment += m_travelDir;
     
-    if (m_curSegment >= 0 && nearestSeg <= m_curSegment + 1)
+    if (m_curDistance >= distances.back() && newSegment == 0)
+      ++m_curLap;
+
+    if ((newSegment >= 0 && nearestSeg <= newSegment + 1) || m_curLap)
     {
       m_bestSegment = std::max(m_bestSegment, nearestSeg);
       m_bestDistance = std::max(m_bestDistance, trackDist);
 
+      m_curDistance = trackDist + static_cast<float>(m_curLap) * distances.back();
+
+      if (m_curSegment != newSegment)
+        m_curSegmentEntryTime = glfwGetTime();
+
       m_curSegment = nearestSeg;
-      m_curDistance = trackDist;
     }
+    
   }
 }
+
+
+void Vehicle::initSensors(INIReader* settings)
+{
+  if (m_sensorConfig.empty())
+  {
+    std::string filename = settings->Get("vehicle", "sensors", "../data/obj/sensors.obj");
+    float scale = static_cast<float>(settings->GetReal("vehicle", "sensorScale", 5.0f));
+
+    std::ifstream file(filename);
+    if (file.is_open())
+    {
+      int start = 0;
+      for (std::string line; std::getline(file, line);)
+      {
+        float v[3];
+        if (sscanf(line.c_str(), "v %f %f %f", v, v + 1, v + 2) == 3)
+          m_sensorConfig.push_back(btVector3(v[0], v[1], v[2]));
+      }
+
+      file.close();
+    }
+    else
+    {
+      m_sensorConfig.resize(6);
+
+      float config[] =
+      {
+        0.0209f, 1.5000f, 1.0072f,
+        0.0209f, 1.5000f, 5.0666f,
+        -0.5070f, 1.5000f, 0.9990f,
+        -3.1516f, 1.5000f, 4.2972f,
+        0.4965f, 1.5000f, 1.0095f,
+        3.3649f, 1.5000f, 4.4035f
+      };
+
+      //      float config[] =
+      //      {
+      //        0,0,0,  1,0,0,
+      //        0,0,0,  0,1,0,
+      //        0,0,0,  0,0,1
+      //      };
+
+      for (int i = 0; i < 6; ++i)
+        m_sensorConfig[i] = btVector3(config[i * 3], config[i * 3 + 1], config[i * 3 + 2]);
+    }
+
+    // scale sensor max distance
+    for (size_t i = 0; i < m_sensorConfig.size() / 2; ++i)
+      m_sensorConfig[i * 2 + 1] = m_sensorConfig[i * 2] + (m_sensorConfig[i * 2 + 1] - m_sensorConfig[i * 2]) * scale;
+  }
+
+  for (size_t i = 0; i < m_sensorConfig.size() / 2; ++i)
+    addSensor(m_sensorConfig[i * 2], m_sensorConfig[i * 2 + 1]);
+}
+
 
 void Vehicle::reset()
 {
@@ -222,9 +302,11 @@ void Vehicle::reset()
   m_curDistance = 0.0f;
   m_bestSegment = 0;
   m_curSegment = 0;
+  m_curLap = 0;
 
   m_alive = true;
   m_birthTime = glfwGetTime();
+  m_curSegmentEntryTime = m_birthTime;
 
   btRigidBody* body = m_vehicle->getRigidBody();
 
@@ -251,10 +333,7 @@ void Vehicle::reset()
 }
 
 VehicleController::VehicleController(Vehicle* vehicle)
-  : m_vehicle(vehicle),
-  m_steerMax(0.6f),
-  m_engineForceFwdMax(5000.0f), m_engineForceRevMax(-3000.0f),
-  m_brakeMax(500.0f)
+  : m_vehicle(vehicle)
 {
 
 }
@@ -273,33 +352,33 @@ void VehicleControllerUser::keyEvent(GLFWwindow* wnd, int key, int scancode, int
     {
       if (key == GLFW_KEY_LEFT)
       {
-        m_vehicle->physics()->setSteeringValue(m_steerMax, 0);
-        m_vehicle->physics()->setSteeringValue(m_steerMax, 1);
+        m_vehicle->physics()->setSteeringValue(m_vehicle->steerMax(), 0);
+        m_vehicle->physics()->setSteeringValue(m_vehicle->steerMax(), 1);
       }
 
       if (key == GLFW_KEY_RIGHT)
       {
-        m_vehicle->physics()->setSteeringValue(-m_steerMax, 0);
-        m_vehicle->physics()->setSteeringValue(-m_steerMax, 1);
+        m_vehicle->physics()->setSteeringValue(-m_vehicle->steerMax(), 0);
+        m_vehicle->physics()->setSteeringValue(-m_vehicle->steerMax(), 1);
       }
 
       if (key == GLFW_KEY_UP)
       {
-        m_vehicle->physics()->applyEngineForce(m_engineForceFwdMax, 2);
-        m_vehicle->physics()->applyEngineForce(m_engineForceFwdMax, 3);
+        m_vehicle->physics()->applyEngineForce(m_vehicle->engineForceFwdMax(), 2);
+        m_vehicle->physics()->applyEngineForce(m_vehicle->engineForceFwdMax(), 3);
       }
 
       if (key == GLFW_KEY_DOWN)
       {
-        m_vehicle->physics()->applyEngineForce(m_engineForceRevMax, 2);
-        m_vehicle->physics()->applyEngineForce(m_engineForceRevMax, 3);
+        m_vehicle->physics()->applyEngineForce(m_vehicle->engineForceRevMax(), 2);
+        m_vehicle->physics()->applyEngineForce(m_vehicle->engineForceRevMax(), 3);
       }
 
       //Handbrake
       if (key == GLFW_KEY_SPACE)
       {
-        m_vehicle->physics()->setBrake(m_brakeMax, 2);
-        m_vehicle->physics()->setBrake(m_brakeMax, 3);
+        m_vehicle->physics()->setBrake(m_vehicle->brakeMax(), 2);
+        m_vehicle->physics()->setBrake(m_vehicle->brakeMax(), 3);
       }
     }
     else
@@ -339,19 +418,21 @@ void VehicleControllerRand::update(double dt)
 {
   float u = static_cast<float>(std::rand()) / RAND_MAX;
 
-  m_vehicle->physics()->setSteeringValue((-1.0f + 2.0f * u) * m_steerMax, 0);
-  m_vehicle->physics()->setSteeringValue((-1.0f + 2.0f * u) * m_steerMax, 1);
+  m_vehicle->physics()->setSteeringValue((-1.0f + 2.0f * u) * m_vehicle->steerMax(), 0);
+  m_vehicle->physics()->setSteeringValue((-1.0f + 2.0f * u) * m_vehicle->steerMax(), 1);
 
   u = static_cast<float>(std::rand()) / RAND_MAX;
-  m_vehicle->physics()->applyEngineForce(u * m_engineForceFwdMax, 2);
-  m_vehicle->physics()->applyEngineForce(u * m_engineForceFwdMax, 3);
+  m_vehicle->physics()->applyEngineForce(u * m_vehicle->engineForceFwdMax(), 2);
+  m_vehicle->physics()->applyEngineForce(u * m_vehicle->engineForceFwdMax(), 3);
 }
 
 
-VehicleControllerNeuralNet::VehicleControllerNeuralNet(Vehicle* vehicle)
-  : VehicleController(vehicle)
+VehicleControllerNeuralNet::VehicleControllerNeuralNet(Vehicle* vehicle, bool enableBrake)
+  : VehicleController(vehicle), m_enableBrake(enableBrake)
 {
-
+  vehicle->steerMax(1.0f);
+  vehicle->engineForceFwdMax(4000.0f);
+  vehicle->engineForceRevMax(-2000.0f);
 }
 
 void VehicleControllerNeuralNet::update(double dt)
@@ -376,16 +457,24 @@ void VehicleControllerNeuralNet::update(double dt)
 
 
     // clamp to allowed values
-    float steer = output[0] * m_steerMax;
+    float steer = output[0] * m_vehicle->steerMax();
     
     float force = output[1] * 0.5f + 0.5f; // map [-1,1] to [0,1]
-    force = m_engineForceRevMax + (m_engineForceFwdMax - m_engineForceRevMax) * force; // lerp
+    force = m_vehicle->engineForceRevMax() + (m_vehicle->engineForceFwdMax() - m_vehicle->engineForceRevMax()) * force; // lerp
+
 
     v->setSteeringValue(steer, 0);
     v->setSteeringValue(steer, 1);
 
     v->applyEngineForce(force, 2);
     v->applyEngineForce(force, 3);
+
+    if (m_enableBrake)
+    {
+      float brake = output[2] * m_vehicle->brakeMax();
+      v->setBrake(brake, 2);
+      v->setBrake(brake, 3);
+    }
   }
   else
     std::cerr << "error: could not execute neural network" << std::endl;
@@ -393,8 +482,8 @@ void VehicleControllerNeuralNet::update(double dt)
 
 int VehicleControllerNeuralNet::dof()
 {
-  // dofs: steer, engine force
-  return 2;
+  // dofs: steer, engine force, brake
+  return m_enableBrake ? 3 : 2;
 }
 
 

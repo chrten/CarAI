@@ -11,11 +11,21 @@
 #include <iostream>
 #include <fstream>
 #include <algorithm>
+#include <sstream>
 
-Simulation::Simulation(const Simulation::Desc& desc, Application* app)
-  : m_desc(desc), m_app(app), m_bullet(0), m_groundBody(0), m_sphereBody(0), m_vehicleUser(0),
+Simulation::Simulation(INIReader* settings, Application* app)
+  : m_settings(settings), m_app(app), m_bullet(0), m_groundBody(0), m_sphereBody(0), m_vehicleUser(0),
+  m_avgDrivenDistance(0.0f), m_bestDrivenDistance(0.0f), m_numVehiclesAlive(0),
   m_evolution(0), m_trackBody(0)
 {
+
+  m_desc.numCars = settings->GetInteger("simulation", "numCars", 20);
+  m_desc.trackHeightsFilename = settings->Get("track", "heights", "../data/tracks/track0.png");
+  m_desc.trackSegmentsFilename = settings->Get("track", "segments", "../data/tracks/track0_segments.obj");
+  m_desc.trackScale = static_cast<float>(settings->GetReal("track", "scale", 2.0));
+  m_desc.trackGroundLevel = static_cast<float>(settings->GetReal("track", "groundLevel", 1.0));
+
+  
   m_bullet = new BulletInterface();
   m_bullet->world->setGravity(btVector3(0, -10, 0));
 
@@ -26,15 +36,24 @@ Simulation::Simulation(const Simulation::Desc& desc, Application* app)
 //   m_sphereBody = m_bullet->createManagedRigidBody(std::make_shared<btSphereShape>(0.5f), 1.0, btVector3(3, 2, -1), true);
 
   // AI controlled vehicles
-  m_vehicles.resize(desc.numCars, 0);
-  std::vector<int> internalNetworkLayers(2);
-  internalNetworkLayers[0] = 4;
-  internalNetworkLayers[1] = 3;
-  for (int i = 0; i < desc.numCars; ++i)
+  m_vehicles.resize(m_desc.numCars, 0);
+  std::vector<int> internalNetworkLayers;
+  std::string internalLayersString = settings->Get("vehicle", "internalLayers", "4 3");
+  std::remove(internalLayersString.begin(), internalLayersString.end(), '\"');
+
+  std::stringstream internalLayersStream(internalLayersString);
+  while (!internalLayersStream.eof())
+  {
+    int lsize;
+    internalLayersStream >> lsize;
+    internalNetworkLayers.push_back(lsize);
+  }
+
+  for (int i = 0; i < m_desc.numCars; ++i)
   {
     m_vehicles[i] = createVehicle();
+    m_vehicles[i]->setControllerNeuralNet(settings->GetBoolean("vehicle", "enableBrakeAI", false));
     m_vehicles[i]->initNeuralNetwork(internalNetworkLayers);
-    m_vehicles[i]->setControllerNeuralNet();
   }
 
   
@@ -43,7 +62,7 @@ Simulation::Simulation(const Simulation::Desc& desc, Application* app)
 //   m_vehicleUser->setControllerUser(m_app);
 
 
-  m_evolution = new EvolutionProcess(0.25f, 1.0f, 0.05f);
+  m_evolution = new EvolutionProcess(0.25f, 0.5f, 0.1f);
 
 
   initTrack();
@@ -85,6 +104,10 @@ void Simulation::initTweakVars(TwBar* bar)
     m_evolution->initTweakVars(bar);
 
   TwAddVarRW(bar, "MutChange", TW_TYPE_FLOAT, &Vehicle::Chromosome::mutationMaxChange, "min=0 max=10 step=0.01 group=Evolution");
+  
+  TwAddVarRO(bar, "BestDistance", TW_TYPE_FLOAT, &m_bestDrivenDistance, "group=Performance");
+  TwAddVarRO(bar, "AvgDistance", TW_TYPE_FLOAT, &m_avgDrivenDistance, "group=Performance");
+  TwAddVarRO(bar, "NumAlive", TW_TYPE_INT32, &m_numVehiclesAlive, "group=Performance");
 }
 
 void Simulation::subtickCallback(btDynamicsWorld* world, btScalar timeStep)
@@ -136,7 +159,8 @@ void Simulation::update(double dt)
 
 
   // update evolution process
-  int numAlive = 0;
+  m_numVehiclesAlive = 0;
+  m_bestDrivenDistance = 0.0f;
 
   size_t n = m_vehicles.size();
   for (int i = 0; i < n; ++i)
@@ -152,18 +176,22 @@ void Simulation::update(double dt)
         v->kill();
 
       // kill vehicles that don't make any progress
-      if ((glfwGetTime() - v->birthTime()) > 20.0f && v->curTrackSegment() < 2)
+      if ((glfwGetTime() - v->curTrackSegmentEntryTime() > 10.0f))
         v->kill();
     }
 
     if (v->alive())
-      ++numAlive;
+    {
+      ++m_numVehiclesAlive;
+    }
     else
       v->physics()->getRigidBody()->forceActivationState(DISABLE_SIMULATION);
+
+    m_bestDrivenDistance = std::max(v->curTrackDistance(), m_bestDrivenDistance);
   }
 
 
-  if (!numAlive)
+  if (!m_numVehiclesAlive)
   {
     applyEvolution();
 
@@ -196,6 +224,11 @@ void Simulation::initTrack()
   unsigned int w, h;
   if (!lodepng::decode(m_trackHeights, w, h, m_desc.trackHeightsFilename, LCT_GREY, 8u))
   {
+    // flip heightmap coordinate system to make pixel (0,0) the lower left corner
+    // for (unsigned int x = 0; x < w; ++x)
+    //  std::reverse(m_trackHeights.begin() + x, m_trackHeights.begin() + (h-1)*w + x);
+
+
     std::shared_ptr<btHeightfieldTerrainShape> trackShape = std::make_shared<btHeightfieldTerrainShape>(w, h, &m_trackHeights[0], 10.0f / 256.0f, 0.0f, 10.0f, 1, PHY_UCHAR, false);
 
     trackShape->setLocalScaling(btVector3(m_desc.trackScale, m_desc.trackScale, m_desc.trackScale));
@@ -240,63 +273,26 @@ void Simulation::initTrack()
 
 
     // compute accumulated segment distance
-    m_trackSegmentDist.resize(m_trackSegments.size(), 0.0f);
+    m_trackSegmentDist.resize(m_trackSegments.size() + 1, 0.0f);
     float accum = 0.0f;
     for (size_t i = 1; i < m_trackSegments.size(); ++i)
     {
       accum += (m_trackSegments[i] - m_trackSegments[i - 1]).norm();
       m_trackSegmentDist[i] = accum;
     }
+    m_trackSegmentDist.back() = accum;
 
   }
   else
     std::cout << "failed to load track heightmap" << std::endl;
 }
 
-void Simulation::initSensors()
-{
-  m_sensorConfigStart.resize(3);
-  m_sensorConfigEnd.resize(3);
-
-  float config[] =
-  {
-    0.0209f, 1.5000f, 1.0072f,
-    0.0209f, 1.5000f, 5.0666f,
-    -0.5070f, 1.5000f, 0.9990f,
-    -3.1516f, 1.5000f, 4.2972f,
-    0.4965f, 1.5000f, 1.0095f,
-    3.3649f, 1.5000f, 4.4035f
-  };
-
-//   float config[] =
-//   {
-//     0,0,0,  1,0,0,
-//     0,0,0,  0,1,0,
-//     0,0,0,  0,0,1
-//   };
-
-  float scale = 5.0f;
-
-  for (int i = 0; i < 3; ++i)
-  { 
-    m_sensorConfigStart[i] = btVector3(config[i * 6 + 0], config[i * 6 + 1], config[i * 6 + 2]);
-    m_sensorConfigEnd[i] = btVector3(config[i * 6 + 3], config[i * 6 + 4], config[i * 6 + 5]);
-
-    m_sensorConfigEnd[i] = m_sensorConfigStart[i] + (m_sensorConfigEnd[i] - m_sensorConfigStart[i]) * scale;
-  }
-}
-
 Vehicle* Simulation::createVehicle()
 {
   btRaycastVehicle* bvehicle = createVehiclePhysics();
-  Vehicle* vehicle = new Vehicle(bvehicle);
+  Vehicle* vehicle = new Vehicle(bvehicle, m_settings);
 
-  if (m_sensorConfigStart.empty())
-    initSensors();
-
-  for (size_t i = 0; i < m_sensorConfigStart.size(); ++i)
-    vehicle->addSensor(m_sensorConfigStart[i], m_sensorConfigEnd[i]);
-
+  
   return vehicle;
 }
 
