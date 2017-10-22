@@ -24,7 +24,7 @@ Simulation::Simulation(INIReader* settings, Application* app)
   m_desc.trackSegmentsFilename = settings->Get("track", "segments", "../data/tracks/track0_segments.obj");
   m_desc.trackScale = static_cast<float>(settings->GetReal("track", "scale", 2.0));
   m_desc.trackGroundLevel = static_cast<float>(settings->GetReal("track", "groundLevel", 1.0));
-
+  m_desc.restartLap = settings->GetInteger("simulation", "restartLap", 1);
   
   m_bullet = new BulletInterface();
   m_bullet->world->setGravity(btVector3(0, -10, 0));
@@ -190,6 +190,10 @@ void Simulation::update(double dt)
 
       // kill vehicles that don't make any progress
       if ((glfwGetTime() - v->curTrackSegmentEntryTime() > 10.0f))
+        v->kill();
+
+
+      if (m_desc.restartLap == v->curLap())
         v->kill();
     }
 

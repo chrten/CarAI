@@ -59,7 +59,7 @@ private:
 
   struct Desc
   {
-    Desc() : numCars(20), trackScale(1.0f), trackGroundLevel(1.0f) {}
+    Desc() : numCars(20), trackScale(1.0f), trackGroundLevel(1.0f), restartLap(1) {}
 
     int numCars;
 
@@ -67,6 +67,8 @@ private:
     std::string trackSegmentsFilename;
     float trackScale;
     float trackGroundLevel;
+
+    int restartLap;
   };
 
   Desc m_desc;

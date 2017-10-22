@@ -16,10 +16,6 @@ public:
 
   virtual void init();
 
-  void initVehicle();
-
-  void initTrack();
-
   virtual void draw(double time);
   virtual void updatePhysics(double dt);
 

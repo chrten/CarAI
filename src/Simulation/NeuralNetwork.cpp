@@ -3,6 +3,8 @@
 
 #include <cstdlib>
 #include <cmath>
+#include <random>
+#include <functional>
 #include <algorithm>
 #include <iostream>
 
@@ -14,8 +16,7 @@ NeuralNetwork::NeuralNetwork()
 
 NeuralNetwork::~NeuralNetwork()
 {
-  for (size_t i = 0; i < m_links.size(); ++i)
-    delete m_links[i];
+  std::for_each(m_links.begin(), m_links.end(), [](auto x) {delete x; });
 }
 
 NeuralNetwork::LayerLinks* NeuralNetwork::addLayer(int numNeurons)
@@ -58,16 +59,34 @@ bool NeuralNetwork::LayerLinks::compute(const std::vector<float>& input, std::ve
   return true;
 }
 
+
+// float rng(float _min, float _max)
+// {
+//   static std::default_random_engine re;
+//   static std::uniform_real_distribution<float> dist;
+// 
+//   return dist(re, std::uniform_real_distribution<float>::param_type{ _min, _max });
+// }
+
+
 void NeuralNetwork::LayerLinks::randomize(float xmin, float xmax)
 {
-  for (int k = 0; k < numOutputs; ++k)
-  {
-    for (int i = 0; i < numInputs; ++i)
-    {
-      float u = static_cast<float>(std::rand()) / RAND_MAX;
-      weight(i, k) = xmin + (xmax - xmin) * u;
-    }
-  }
+  float range = xmax - xmin;
+  std::generate(weights.begin(), weights.end(), [xmin, range] {return xmin + range * static_cast<float>(std::rand()) / RAND_MAX; });
+
+  //std::generate(weights.begin(), weights.end(), [xmin, xmax]() {return rng(xmin, xmax); });
+
+//   auto r = std::bind(rng, xmin, xmax);
+//   std::generate(weights.begin(), weights.end(), r);
+
+//   for (int k = 0; k < numOutputs; ++k)
+//   {
+//     for (int i = 0; i < numInputs; ++i)
+//     {
+//       float u = static_cast<float>(std::rand()) / RAND_MAX;
+//       weight(i, k) = xmin + (xmax - xmin) * u;
+//     }
+//   }
 }
 
 bool NeuralNetwork::compute(const std::vector<float>& input, std::vector<float>& output) const
